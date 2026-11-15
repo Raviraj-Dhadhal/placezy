@@ -68,4 +68,26 @@ export class AuthService {
       },
     };
   }
+
+  static async getMe(userId: string): Promise<IUser | null> {
+    return UserModel.findById(userId).select('-passwordHash');
+  }
+
+  static async updateProfile(userId: string, data: { name?: string; city?: string; gender?: 'male' | 'female'; avatar?: string }): Promise<IUser | null> {
+    return UserModel.findByIdAndUpdate(userId, { $set: data }, { new: true }).select('-passwordHash');
+  }
+
+  static async updateInterests(userId: string, interests: string[]): Promise<IUser | null> {
+    return UserModel.findByIdAndUpdate(userId, { $set: { interests } }, { new: true }).select('-passwordHash');
+  }
+
+  static async forgotPassword(email: string): Promise<{ success: boolean; message: string }> {
+    const user = await UserModel.findOne({ email });
+    if (!user) {
+      // Return success to avoid email enumeration
+      return { success: true, message: 'If an account exists, a password reset link has been dispatched.' };
+    }
+    // Simulation for reset link dispatch
+    return { success: true, message: 'Password reset link sent to your registered email.' };
+  }
 }

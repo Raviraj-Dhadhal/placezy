@@ -1,4 +1,5 @@
 import { PlaceModel, IPlace } from './place.model';
+import { CategoryModel, ICategory } from '../categories/category.model';
 
 export interface PlaceFilters {
   category?: string;
@@ -6,31 +7,91 @@ export interface PlaceFilters {
   city?: string;
   cuisine?: string;
   minRating?: number;
+  priceLevel?: string;
 }
 
 export class PlaceService {
   static async getAll(filters: PlaceFilters): Promise<IPlace[]> {
     const query: any = {};
     if (filters.category && filters.category !== 'All') {
-      query.category = { $regex: new RegExp(filters.category, 'i') };
+      query.category = { $regex: new RegExp(`^${filters.category}$`, 'i') };
     }
     if (filters.search) {
       query.$or = [
         { name: { $regex: new RegExp(filters.search, 'i') } },
         { address: { $regex: new RegExp(filters.search, 'i') } },
+        { cuisines: { $in: [new RegExp(filters.search, 'i')] } },
       ];
     }
     if (filters.minRating) {
-      query.rating = { $gte: filters.minRating };
+      query.rating = { $gte: Number(filters.minRating) };
+    }
+    if (filters.priceLevel) {
+      query.priceLevel = filters.priceLevel;
     }
     return PlaceModel.find(query).sort({ rating: -1 });
   }
 
   static async getById(id: string): Promise<IPlace | null> {
-    return PlaceModel.findById(id);
+    return PlaceModel.findById(id).populate('ownerId', 'name email avatar');
   }
 
-  static async create(data: Partial<IPlace>): Promise<IPlace> {
-    return PlaceModel.create(data);
+  static async getNearby(lat: number, lng: number, radiusKm: number = 25): Promise<IPlace[]> {
+    // Distance approximation using spherical law / Pythagorean bounding for Rajkot region
+    const all = await PlaceModel.find({});
+    return all
+      .map((p) => {
+        if (!p.latitude || !p.longitude) return null;
+        const dLat = ((p.latitude - lat) * Math.PI) / 180;
+        const dLng = ((p.longitude - lng) * Math.PI) / 180;
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos((lat * Math.PI) / 180) *
+            Math.cos((p.latitude * Math.PI) / 180) *
+            Math.sin(dLng / 2) *
+            Math.sin(dLng / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distanceKm = Math.round(6371 * c * 10) / 10;
+        const plain = p.toObject();
+        plain.distanceKm = distanceKm;
+        return plain;
+      })
+      .filter((p): p is any => p !== null && typeof p.distanceKm === 'number' && p.distanceKm <= radiusKm)
+      .sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0));
+  }
+
+  static async searchSuggestions(q: string): Promise<Array<{ id: string; name: string; category: string }>> {
+    if (!q || q.trim() === '') return [];
+    const results = await PlaceModel.find({
+      name: { $regex: new RegExp(q, 'i') },
+    })
+      .select('name category')
+      .limit(6);
+    return results.map((r) => ({ id: r._id.toString(), name: r.name, category: r.category }));
+  }
+
+  static async getCategories(): Promise<Array<{ id: string; name: string; slug: string; iconName: string; count: number }>> {
+    const categories = await CategoryModel.find({}).sort({ count: -1 });
+    if (categories.length > 0) {
+      return categories.map((c) => ({
+        id: c._id.toString(),
+        name: c.name,
+        slug: c.slug,
+        iconName: c.iconName,
+        count: c.count,
+      }));
+    }
+
+    // Dynamic aggregation if categories collection is empty
+    const counts = await PlaceModel.aggregate([
+      { $group: { _id: '$category', count: { $sum: 1 } } },
+    ]);
+    return counts.map((item) => ({
+      id: item._id,
+      name: item._id,
+      slug: item._id.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      iconName: 'Compass',
+      count: item.count,
+    }));
   }
 }
