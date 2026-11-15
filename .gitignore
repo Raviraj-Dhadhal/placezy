@@ -63,9 +63,3 @@ tmp/
 # (Strictly keep only public README.md)
 # ==========================================
 *.md
-!README.md
-!readme.md
-ReadMe/
-before.md
-folderStructure.md
-check.md
