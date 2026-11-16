@@ -6,10 +6,11 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   error?: string;
   icon?: React.ReactNode;
   iconPosition?: 'left' | 'right';
+  rightElement?: React.ReactNode;
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ label, helperText, error, icon, iconPosition = 'left', className = '', id, ...props }, ref) => {
+  ({ label, helperText, error, icon, iconPosition = 'left', rightElement, className = '', id, ...props }, ref) => {
     const inputId = id || label?.toLowerCase().replace(/\s+/g, '-');
 
     return (
@@ -36,6 +37,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
               transition-colors duration-150 py-2.5 px-3.5
               ${icon && iconPosition === 'left' ? 'pl-10' : ''}
               ${icon && iconPosition === 'right' ? 'pr-10' : ''}
+              ${rightElement ? 'pr-10' : ''}
               ${error ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500' : 'border-[#E2E8F0] focus:border-[#006765] focus:ring-1 focus:ring-[#006765]'}
               focus:outline-none
               disabled:bg-[#F8FAFC] disabled:text-[#8E98B0] disabled:cursor-not-allowed
@@ -44,11 +46,15 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             {...props}
           />
 
-          {icon && iconPosition === 'right' && (
+          {rightElement ? (
+            <div className="absolute right-3.5 flex items-center">
+              {rightElement}
+            </div>
+          ) : icon && iconPosition === 'right' ? (
             <div className="absolute right-3.5 text-[#555E74] flex items-center">
               {icon}
             </div>
-          )}
+          ) : null}
         </div>
 
         {error && <span className="text-xs text-red-500 font-medium">{error}</span>}

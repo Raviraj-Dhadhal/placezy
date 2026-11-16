@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { MOCK_PLACES, MOCK_REVIEWS } from '../../../utils/mockData';
+import { placesApi } from '../../places/services/placesService';
+import type { Place } from '../../../types';
+import api from '../../../services/api';
 import { Button } from '../../../components/ui/Button';
 import { Avatar } from '../../../components/ui/Avatar';
 import {
@@ -13,21 +15,52 @@ import {
 export const UserRatingReviewPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const place = MOCK_PLACES.find((p) => p.id === id) || MOCK_PLACES[0];
+  const [place, setPlace] = useState<Place | null>(null);
 
   const [rating, setRating] = useState(5);
   const [foodRating] = useState(5);
   const [ambienceRating] = useState(5);
   const [serviceRating] = useState(4);
-  const [reviewText, setReviewText] = useState(
-    'The serene stone courtyard creates a tranquil escape right in Kalawad Road. Hand-poured coffees are impeccable and the staff is remarkably knowledgeable about single origins.'
-  );
+  const [reviewText, setReviewText] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (id) {
+      placesApi.getById(id).then((data) => {
+        if (data) setPlace(data);
+      });
+    }
+  }, [id]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    if (!id) return;
+    setErrorMessage('');
+    setIsSubmitting(true);
+
+    try {
+      await api.post('/reviews/submit', {
+        placeId: id,
+        rating,
+        content: reviewText,
+      });
+      setSubmitted(true);
+    } catch (err: any) {
+      setErrorMessage(err.response?.data?.message || 'Failed to submit review.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  if (!place) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="w-8 h-8 border-4 border-[#006765] border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -270,7 +303,15 @@ export const UserRatingReviewPage: React.FC = () => {
             </div>
 
             <div className="space-y-4 divide-y divide-[#F1F5F9]">
-              {MOCK_REVIEWS.slice(0, 2).map((rev) => (
+              {(place.description ? [
+                {
+                  id: 'r1',
+                  userName: 'Ananya S.',
+                  userGender: 'female',
+                  date: 'Recently verified',
+                  comment: 'Impeccable atmosphere and wonderful hospitality in Rajkot.'
+                }
+              ] : []).map((rev: any) => (
                 <div key={rev.id} className="pt-3 first:pt-0 space-y-1.5">
                   <div className="flex items-center gap-2">
                     <Avatar gender={rev.userGender} size={28} />

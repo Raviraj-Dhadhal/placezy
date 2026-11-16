@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config/env';
 import { AuthenticatedRequest, AuthUserPayload } from '../types';
+import { UserModel } from '../modules/users/user.model';
 
 export const authenticate = (
   req: AuthenticatedRequest,
@@ -18,10 +19,36 @@ export const authenticate = (
   try {
     const decoded = jwt.verify(token, config.jwtSecret) as AuthUserPayload;
     req.user = decoded;
-    next();
+
+    // Check if user is suspended
+    UserModel.findById(decoded.userId).then((u) => {
+      if (u && u.status === 'suspended') {
+        res.status(403).json({ success: false, message: 'Account is suspended.' });
+        return;
+      }
+      next();
+    }).catch(() => next());
   } catch (err) {
     res.status(401).json({ success: false, message: 'Invalid or expired token.' });
   }
+};
+
+export const optionalAuthenticate = (
+  req: AuthenticatedRequest,
+  _res: Response,
+  next: NextFunction
+): void => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    try {
+      const decoded = jwt.verify(token, config.jwtSecret) as AuthUserPayload;
+      req.user = decoded;
+    } catch (err) {
+      // Ignored for optional auth
+    }
+  }
+  next();
 };
 
 export const authorize = (...roles: Array<'user' | 'owner' | 'admin'>) => {

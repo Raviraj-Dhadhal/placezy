@@ -48,6 +48,24 @@ export class TripController {
     }
   }
 
+  static async update(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        sendResponse(res, 401, false, 'Unauthorized');
+        return;
+      }
+      const tripId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const trip = await TripService.updateTrip(tripId, req.user.userId, req.body);
+      if (!trip) {
+        sendResponse(res, 404, false, 'Trip not found');
+        return;
+      }
+      sendResponse(res, 200, true, 'Trip updated successfully', trip);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async updateStops(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       if (!req.user) {

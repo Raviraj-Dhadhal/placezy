@@ -1,10 +1,12 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 interface LogoProps {
   size?: number;
   className?: string;
   showText?: boolean;
   textSize?: string;
+  disableLink?: boolean;
 }
 
 export const Logo: React.FC<LogoProps> = ({
@@ -12,9 +14,10 @@ export const Logo: React.FC<LogoProps> = ({
   className = '',
   showText = true,
   textSize = 'text-xl',
+  disableLink = false,
 }) => {
-  return (
-    <div className={`flex items-center gap-2.5 ${className}`}>
+  const content = (
+    <div className={`flex items-center gap-2.5 cursor-pointer select-none ${className}`}>
       {/* SVG Icon matching uploaded logo.svg */}
       <svg
         width={size}
@@ -40,5 +43,15 @@ export const Logo: React.FC<LogoProps> = ({
         </span>
       )}
     </div>
+  );
+
+  if (disableLink) {
+    return content;
+  }
+
+  return (
+    <Link to="/" className="inline-block hover:opacity-90 transition-opacity">
+      {content}
+    </Link>
   );
 };

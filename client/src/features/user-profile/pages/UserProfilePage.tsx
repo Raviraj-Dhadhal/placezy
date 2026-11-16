@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../../components/ui/Button';
 import { Avatar } from '../../../components/ui/Avatar';
+import { useAuth } from '../../../context/AuthContext';
 import {
   User,
   Heart,
@@ -14,11 +15,30 @@ import {
   ChevronRight,
   Shield,
   MapPin,
-  Bell
+  Bell,
+  LogIn
 } from 'lucide-react';
 
 export const UserProfilePage: React.FC = () => {
   const navigate = useNavigate();
+  const { user, isAuthenticated, logout } = useAuth();
+
+  if (!isAuthenticated || !user) {
+    return (
+      <div className="max-w-md mx-auto my-12 bg-white p-8 rounded-2xl border border-[#E2E8F0] shadow-sm text-center space-y-4">
+        <div className="w-12 h-12 rounded-full bg-[#CFE7E6]/40 text-[#006765] flex items-center justify-center mx-auto">
+          <User size={24} />
+        </div>
+        <h2 className="text-lg font-bold text-[#151C27]">Sign in to view your profile</h2>
+        <p className="text-xs text-[#555E74] leading-relaxed">
+          Access your personal preferences, wishlist, itineraries, and settings.
+        </p>
+        <Button fullWidth icon={<LogIn size={14} />} onClick={() => navigate('/login')}>
+          Log In Now
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -34,37 +54,50 @@ export const UserProfilePage: React.FC = () => {
       {/* Main Profile Header Card matching Screen 16 */}
       <div className="bg-white p-6 rounded-2xl border border-[#E2E8F0] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Avatar gender="female" size={64} name="Mahek Patel" />
+          <Avatar gender={user.gender || 'female'} size={64} name={user.name} />
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold font-serif text-[#151C27]">Mahek Patel</h1>
-              <span className="text-[10px] font-bold text-[#006765] bg-[#CFE7E6]/40 px-2 py-0.5 rounded-full">
-                Urban Explorer & Rajkot Insider
+              <h1 className="text-xl font-bold font-serif text-[#151C27]">{user.name}</h1>
+              <span className="text-[10px] font-bold text-[#006765] bg-[#CFE7E6]/40 px-2 py-0.5 rounded-full capitalize">
+                {user.role} Insider
               </span>
             </div>
-            <p className="text-xs text-[#555E74]">mahek.urban@example.com</p>
+            <p className="text-xs text-[#555E74]">{user.email}</p>
             <div className="flex items-center gap-3 text-[11px] text-[#555E74] pt-1">
               <span className="flex items-center gap-1">
                 <MapPin size={12} className="text-[#006765]" />
                 Rajkot, Gujarat, India
               </span>
               <span>•</span>
-              <span>Member since Nov 2024</span>
-              <span>•</span>
-              <span className="font-semibold text-[#151C27]">6 Saved Places</span>
-              <span>•</span>
-              <span className="font-semibold text-[#151C27]">3 Trips</span>
+              <span className="flex items-center gap-1">
+                <Star size={12} className="text-amber-500 fill-amber-500" />
+                Active Explorer
+              </span>
             </div>
           </div>
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => navigate('/settings')}
-        >
-          Edit Profile
-        </Button>
+        <div className="flex items-center gap-2.5">
+          <Button
+            size="sm"
+            variant="outline"
+            icon={<Settings size={14} />}
+            onClick={() => navigate('/settings')}
+          >
+            Edit Profile
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            icon={<LogOut size={14} />}
+            onClick={() => {
+              logout();
+              navigate('/login');
+            }}
+          >
+            Logout
+          </Button>
+        </div>
       </div>
 
       {/* 4 Feature Blocks matching Screen 16 */}
@@ -206,7 +239,10 @@ export const UserProfilePage: React.FC = () => {
             </div>
 
             <div
-              onClick={() => navigate('/login')}
+              onClick={() => {
+                logout();
+                navigate('/login');
+              }}
               className="pt-2.5 flex items-center justify-between hover:text-red-600 cursor-pointer text-red-600"
             >
               <div className="flex items-center gap-2.5">

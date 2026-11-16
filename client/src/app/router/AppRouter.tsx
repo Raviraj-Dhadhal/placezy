@@ -1,10 +1,12 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { ProtectedRoute } from '../../components/shared/ProtectedRoute';
 
 // Layouts
 import { UserLayout } from '../../layouts/UserLayout';
 import { OwnerLayout } from '../../layouts/OwnerLayout';
 import { AdminLayout } from '../../layouts/AdminLayout';
 import { AuthLayout } from '../../layouts/AuthLayout';
+import { PublicLayout } from '../../layouts/PublicLayout';
 
 // Feature: Auth (5 screens)
 import { SplashScreen } from '../../features/auth/pages/SplashScreen';
@@ -70,50 +72,144 @@ export const AppRouter = () => {
   return (
     <Routes>
       {/* ─── AUTHENTICATION & ONBOARDING (5 Screens) ─── */}
+      <Route path="/splash" element={<SplashScreen />} />
       <Route element={<AuthLayout />}>
-        <Route path="/splash" element={<SplashScreen />} />
         <Route path="/register" element={<CreateAccountPage />} />
         <Route path="/register/interests" element={<RegisterInterestsPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       </Route>
 
-      {/* ─── MODULE 01: USER PANEL (18 Screens) ─── */}
-      <Route element={<UserLayout />}>
-        {/* Discovery & Places */}
-        <Route path="/" element={<UserHomePage />} />
-        <Route path="/explore" element={<UserExplorePage />} />
-        <Route path="/explore/filter" element={<UserExploreFilterPage />} />
-        <Route path="/place/:id" element={<UserExploreDetailPage />} />
-        <Route path="/nearby" element={<UserNearbyPage />} />
-        <Route path="/map" element={<UserMapViewPage />} />
-
-        {/* Reviews */}
-        <Route path="/place/:id/review" element={<UserRatingReviewPage />} />
-
-        {/* Wishlist */}
-        <Route path="/wishlist" element={<UserWishlistPage />} />
-
-        {/* Trips */}
-        <Route path="/trip-planner" element={<UserTripPlannerPage />} />
-        <Route path="/plan-trip" element={<UserPlanNewTripPage />} />
-
-        {/* User Account */}
-        <Route path="/notifications" element={<UserNotificationPage />} />
-        <Route path="/profile" element={<UserProfilePage />} />
-        <Route path="/settings" element={<UserSettingsPage />} />
-
-        {/* Support & Legal */}
-        <Route path="/help" element={<UserHelpPage />} />
+      {/* ─── PUBLIC LEGAL & SUPPORT PAGES (Accessible without login) ─── */}
+      <Route element={<PublicLayout />}>
         <Route path="/privacy" element={<PrivacyPolicyPage />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/faq" element={<PublicFaqPage />} />
         <Route path="/contact" element={<ContactUsPage />} />
       </Route>
 
+      {/* ─── MODULE 01: USER PANEL (Discovery & Auth-Protected Workflows) ─── */}
+      <Route element={<UserLayout />}>
+        {/* Discovery & Places - Home page is public, everything else requires login */}
+        <Route path="/" element={<UserHomePage />} />
+        <Route
+          path="/explore"
+          element={
+            <ProtectedRoute>
+              <UserExplorePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/place/:id" element={<UserExploreDetailPage />} />
+        <Route
+          path="/explore/filter"
+          element={
+            <ProtectedRoute>
+              <UserExploreFilterPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/nearby"
+          element={
+            <ProtectedRoute>
+              <UserNearbyPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/map"
+          element={
+            <ProtectedRoute>
+              <UserMapViewPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Reviews */}
+        <Route
+          path="/place/:id/review"
+          element={
+            <ProtectedRoute>
+              <UserRatingReviewPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Wishlist */}
+        <Route
+          path="/wishlist"
+          element={
+            <ProtectedRoute>
+              <UserWishlistPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Trips */}
+        <Route
+          path="/trip-planner"
+          element={
+            <ProtectedRoute>
+              <UserTripPlannerPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/plan-trip"
+          element={
+            <ProtectedRoute>
+              <UserPlanNewTripPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* User Account */}
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute>
+              <UserNotificationPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <UserProfilePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <UserSettingsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/help"
+          element={
+            <ProtectedRoute>
+              <UserHelpPage />
+            </ProtectedRoute>
+          }
+        />
+      </Route>
+
       {/* ─── MODULE 02: OWNER PANEL (8 Screens) ─── */}
-      <Route path="/owner/register" element={<OwnerBusinessRegisterPage />} />
-      <Route element={<OwnerLayout />}>
+      <Route element={<PublicLayout />}>
+        <Route path="/owner/register" element={<OwnerBusinessRegisterPage />} />
+      </Route>
+      <Route
+        element={
+          <ProtectedRoute allowedRoles={['owner', 'admin']}>
+            <OwnerLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route path="/owner" element={<Navigate to="/owner/dashboard" replace />} />
         <Route path="/owner/dashboard" element={<OwnerDashboardPage />} />
         <Route path="/owner/listings" element={<OwnerListingsPage />} />
@@ -125,7 +221,13 @@ export const AppRouter = () => {
       </Route>
 
       {/* ─── MODULE 03: ADMIN CONSOLE (9 Screens) ─── */}
-      <Route element={<AdminLayout />}>
+      <Route
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
         <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
         <Route path="/admin/users" element={<AdminUsersPage />} />

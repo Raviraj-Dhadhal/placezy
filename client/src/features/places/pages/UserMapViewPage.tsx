@@ -1,84 +1,92 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MOCK_PLACES } from '../../../utils/mockData';
-import { Button } from '../../../components/ui/Button';
-import { Badge } from '../../../components/ui/Badge';
+import { placesApi } from '../services/placesService';
+import type { Place } from '../../../types';
 import {
-  Search,
-  SlidersHorizontal,
-  Compass,
   MapPin,
   Star,
-  Layers,
-  Plus,
-  Minus,
-  RotateCw,
-  Eye,
-  Bookmark
+  ExternalLink,
+  Navigation,
+  Compass,
+  Search
 } from 'lucide-react';
 
 export const UserMapViewPage: React.FC = () => {
   const navigate = useNavigate();
+  const [places, setPlaces] = useState<Place[]>([]);
+  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [selectedRadius, setSelectedRadius] = useState('5 km');
-  const [mapLayer, setMapLayer] = useState<'Roads' | 'Satellite' | 'Heatmap'>('Roads');
-  const [searchAsMove, setSearchAsMove] = useState(true);
-  const [selectedPlace, setSelectedPlace] = useState(MOCK_PLACES[0]);
 
-  const categories = ['All (18)', 'Cafés', 'Heritage & Culture', 'Fine Dining', 'Nature & Parks'];
-  const radiusList = ['3 km', '5 km', '10 km', 'All Rajkot'];
+  useEffect(() => {
+    placesApi.getAll().then((data) => {
+      setPlaces(data || []);
+      if (data && data.length > 0) {
+        setSelectedPlace(data[0]);
+      }
+    });
+  }, []);
+
+  const categories = ['All', 'Cafés', 'Restaurants', 'Culture', 'Attractions', 'Nature & Parks'];
+
+  const filteredPlaces = places.filter((p) => {
+    const matchesSearch =
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.address && p.address.toLowerCase().includes(searchQuery.toLowerCase()));
+    if (!matchesSearch) return false;
+
+    if (selectedCategory !== 'All') {
+      return (p.category || '').toLowerCase().includes(selectedCategory.toLowerCase());
+    }
+    return true;
+  });
+
+  const getGoogleMapsSearchUrl = (place: Place) => {
+    const query = `${place.name} ${place.address || place.city || 'Rajkot Gujarat'}`;
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+  };
+
+  const mapQuery = selectedPlace
+    ? `${selectedPlace.name} ${selectedPlace.address || selectedPlace.city || 'Rajkot Gujarat'}`
+    : 'Rajkot Gujarat India';
 
   return (
-    <div className="relative h-[calc(100vh-8rem)] w-full rounded-2xl overflow-hidden border border-[#E2E8F0] shadow-sm flex">
-      {/* Floating Left Control Panel matching Screen 12 */}
-      <div className="absolute top-4 left-4 z-20 w-80 max-h-[calc(100%-2rem)] overflow-y-auto bg-white/95 backdrop-blur-md rounded-2xl border border-[#E2E8F0] p-4 shadow-float space-y-4">
-        {/* Panel Header */}
-        <div className="flex items-center justify-between pb-2 border-b border-[#F1F5F9]">
-          <div>
+    <div className="relative h-[calc(100vh-8rem)] w-full rounded-2xl overflow-hidden border border-[#E2E8F0] shadow-sm flex flex-col md:flex-row">
+      {/* Left Sidebar: Place Selector & Search */}
+      <div className="w-full md:w-80 lg:w-96 bg-white border-r border-[#E2E8F0] flex flex-col h-full z-10 shrink-0">
+        {/* Header */}
+        <div className="p-4 border-b border-[#F1F5F9] space-y-3">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <h2 className="text-sm font-bold text-[#151C27]">Explore Rajkot on Map</h2>
-              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                LIVE
-              </span>
+              <Compass size={18} className="text-[#006765]" />
+              <h2 className="text-sm font-bold text-[#151C27]">Explore Venues on Map</h2>
             </div>
-            <p className="text-[10px] text-[#555E74] mt-0.5">Discover curated places around Rajkot, Gujarat.</p>
+            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              {filteredPlaces.length} Venues
+            </span>
           </div>
-          <button className="p-1 rounded hover:bg-[#F0F3FF] text-[#555E74]">
-            <RotateCw size={13} />
-          </button>
-        </div>
 
-        {/* Location Search Input */}
-        <div className="space-y-1">
-          <label className="text-[10px] font-bold text-[#555E74] uppercase tracking-wider">
-            Location Search
-          </label>
-          <div className="flex items-center gap-2 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-2.5 py-1.5 text-xs">
-            <MapPin size={13} className="text-[#006765]" />
+          {/* Search Box */}
+          <div className="flex items-center gap-2 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-3 py-2 text-xs">
+            <Search size={14} className="text-[#8E98B0]" />
             <input
               type="text"
-              defaultValue="Yagnik Road, Jubilee Garden"
-              className="bg-transparent border-none outline-none text-xs w-full text-[#151C27] font-medium"
+              placeholder="Search places in Rajkot..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bg-transparent border-none outline-none text-xs w-full text-[#151C27] font-medium placeholder:text-[#8E98B0]"
             />
           </div>
-        </div>
 
-        {/* Categories */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <label className="text-[10px] font-bold text-[#555E74] uppercase tracking-wider">
-              Categories
-            </label>
-            <span className="text-[10px] text-[#006765] cursor-pointer hover:underline">Reset</span>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
+          {/* Category Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
             {categories.map((c) => (
               <button
                 key={c}
                 onClick={() => setSelectedCategory(c)}
-                className={`text-[11px] px-2.5 py-1 rounded-full font-medium transition-all ${
+                className={`text-[11px] px-2.5 py-1 rounded-full font-medium whitespace-nowrap transition-all ${
                   selectedCategory === c
-                    ? 'bg-[#006765] text-white'
+                    ? 'bg-[#006765] text-white shadow-sm'
                     : 'bg-[#F8FAFC] text-[#555E74] hover:bg-[#CFE7E6]/30'
                 }`}
               >
@@ -88,194 +96,97 @@ export const UserMapViewPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Radius Filter */}
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-bold text-[#555E74] uppercase tracking-wider">
-            Radius Filter
-          </label>
-          <div className="grid grid-cols-4 gap-1">
-            {radiusList.map((r) => (
-              <button
-                key={r}
-                onClick={() => setSelectedRadius(r)}
-                className={`text-[10px] py-1 text-center rounded font-semibold border ${
-                  selectedRadius === r
-                    ? 'bg-[#006765] text-white border-[#006765]'
-                    : 'bg-white text-[#555E74] border-[#E2E8F0]'
+        {/* Scrollable Venue List */}
+        <div className="flex-1 overflow-y-auto divide-y divide-[#F1F5F9] p-2 space-y-1">
+          {filteredPlaces.map((p) => {
+            const isSelected = (selectedPlace?.id || (selectedPlace as any)?._id) === (p.id || (p as any)?._id);
+            const pId = p.slug || p.id || (p as any)._id;
+            return (
+              <div
+                key={p.id || (p as any)._id}
+                onClick={() => setSelectedPlace(p)}
+                className={`p-3 rounded-xl cursor-pointer transition-all flex items-start gap-3 ${
+                  isSelected
+                    ? 'bg-[#CFE7E6]/30 border border-[#006765]/30 shadow-xs'
+                    : 'hover:bg-[#F8FAFC] border border-transparent'
                 }`}
               >
-                {r}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Search As I Move Map toggle */}
-        <div className="flex items-center justify-between pt-1 border-t border-[#F1F5F9]">
-          <span className="text-xs text-[#151C27] font-medium">Search as I move map</span>
-          <button
-            onClick={() => setSearchAsMove(!searchAsMove)}
-            className={`w-9 h-5 rounded-full transition-colors relative ${
-              searchAsMove ? 'bg-[#006765]' : 'bg-[#CBD5E1]'
-            }`}
-          >
-            <span
-              className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-transform ${
-                searchAsMove ? 'right-1' : 'left-1'
-              }`}
-            ></span>
-          </button>
-        </div>
-
-        {/* Featured Hubs In View */}
-        <div className="space-y-2 pt-2 border-t border-[#F1F5F9]">
-          <span className="text-[10px] font-bold text-[#555E74] uppercase tracking-wider block">
-            Featured Hubs In View
-          </span>
-          <div className="space-y-1 text-xs">
-            <div className="flex items-center justify-between p-1.5 rounded hover:bg-[#F0F3FF] cursor-pointer">
-              <span className="font-medium text-[#151C27]">Race Course Grounds</span>
-              <span className="text-[10px] text-[#555E74]">6 Curated Places</span>
-            </div>
-            <div className="flex items-center justify-between p-1.5 rounded hover:bg-[#F0F3FF] cursor-pointer">
-              <span className="font-medium text-[#151C27]">Jubilee Garden Quarter</span>
-              <span className="text-[10px] text-[#555E74]">5 Curated Places</span>
-            </div>
-          </div>
+                <img
+                  src={p.coverImage || p.imageUrl || '/images/places/grand-courtyard.jpg'}
+                  alt={p.name}
+                  className="w-14 h-14 rounded-lg object-cover shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-[#006765] uppercase">
+                      {p.subCategory || p.category}
+                    </span>
+                    <span className="text-xs font-bold text-[#151C27] flex items-center gap-0.5">
+                      <Star size={11} className="fill-amber-400 text-amber-400" />
+                      {p.rating}
+                    </span>
+                  </div>
+                  <h4 className="text-xs font-bold text-[#151C27] truncate mt-0.5">{p.name}</h4>
+                  <p className="text-[11px] text-[#555E74] truncate mt-0.5">{p.address || p.city}</p>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* Main Interactive Map Canvas (Full View) */}
-      <div className="flex-1 w-full h-full bg-[#E5F2F0] relative overflow-hidden flex items-center justify-center">
-        {/* Map grid lines representation */}
-        <div className="absolute inset-0 opacity-20 pointer-events-none bg-[radial-gradient(#006765_1px,transparent_1px)] [background-size:24px_24px]"></div>
+      {/* Main Map Viewport with Google Maps Embed */}
+      <div className="flex-1 w-full h-full relative bg-[#E5F2F0]">
+        <iframe
+          title="Placezy Gujarat Interactive Map"
+          width="100%"
+          height="100%"
+          style={{ border: 0 }}
+          loading="lazy"
+          allowFullScreen
+          src={`https://maps.google.com/maps?q=${encodeURIComponent(mapQuery)}&z=15&ie=UTF8&iwloc=&output=embed`}
+          className="absolute inset-0 w-full h-full"
+        ></iframe>
 
-        {/* Stylized River & Roads matching Rajkot (Aji River representation) */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-40">
-          <path d="M 800 0 Q 750 300 900 800" stroke="#006765" strokeWidth="8" fill="none" />
-          <path d="M 0 350 Q 400 320 1000 400" stroke="#CBD5E1" strokeWidth="4" fill="none" />
-          <path d="M 400 0 Q 420 500 450 1000" stroke="#CBD5E1" strokeWidth="4" fill="none" />
-        </svg>
-
-        {/* Interactive Place Markers matching Screen 12 */}
-        {/* Pin 1: Grand Courtyard */}
-        <div
-          onClick={() => setSelectedPlace(MOCK_PLACES[0])}
-          className="absolute top-[42%] left-[48%] z-10 flex flex-col items-center cursor-pointer hover:scale-110 transition-transform"
-        >
-          <div className="px-2 py-0.5 bg-[#151C27] text-white text-[11px] font-bold rounded shadow-md border border-white flex items-center gap-1">
-            <span>The Grand Courtyard</span>
-            <span className="text-amber-400">★ 4.8</span>
-          </div>
-          <div className="w-2.5 h-2.5 bg-[#151C27] rotate-45 -mt-1"></div>
-        </div>
-
-        {/* Pin 2: Watson Museum */}
-        <div
-          onClick={() => setSelectedPlace(MOCK_PLACES[1])}
-          className="absolute top-[32%] left-[62%] z-10 flex flex-col items-center cursor-pointer hover:scale-110 transition-transform"
-        >
-          <div className="px-2 py-0.5 bg-white text-[#151C27] text-[10px] font-bold rounded shadow border border-[#E2E8F0] flex items-center gap-1">
-            <span>Watson Museum</span>
-            <span className="text-[#006765]">4.5★</span>
-          </div>
-        </div>
-
-        {/* Pin 3: Kavita Tea */}
-        <div
-          onClick={() => setSelectedPlace(MOCK_PLACES[2])}
-          className="absolute bottom-[38%] left-[58%] z-10 flex flex-col items-center cursor-pointer hover:scale-110 transition-transform"
-        >
-          <div className="px-2 py-0.5 bg-white text-[#151C27] text-[10px] font-bold rounded shadow border border-[#E2E8F0] flex items-center gap-1">
-            <span>Kavita Artisan Tea House</span>
-            <span className="text-[#006765]">4.9★</span>
-          </div>
-        </div>
-
-        {/* Pin 4: Kathiyawadi Rasoi */}
-        <div
-          onClick={() => setSelectedPlace(MOCK_PLACES[3])}
-          className="absolute bottom-[28%] left-[44%] z-10 flex flex-col items-center cursor-pointer hover:scale-110 transition-transform"
-        >
-          <div className="px-2 py-0.5 bg-white text-[#151C27] text-[10px] font-bold rounded shadow border border-[#E2E8F0] flex items-center gap-1">
-            <span>Kathiyawadi Rasoi Heritage</span>
-            <span className="text-[#006765]">4.8★</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Floating Bottom Center Detail Card matching Screen 12 */}
-      {selectedPlace && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 w-[92%] sm:w-[460px] bg-white rounded-2xl border border-[#E2E8F0] p-4 shadow-float flex items-center gap-4 animate-in fade-in duration-200">
-          <img
-            src={selectedPlace.coverImage}
-            alt={selectedPlace.name}
-            className="w-24 h-24 rounded-xl object-cover shrink-0"
-          />
-
-          <div className="flex-1 min-w-0 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Badge variant="white" size="sm">
-                {selectedPlace.subCategory}
-              </Badge>
-              <span className="text-[10px] font-bold text-[#006765]">
-                {selectedPlace.matchPercentage}% Vibe Match
-              </span>
+        {/* Selected Venue Floating Action Bar */}
+        {selectedPlace && (
+          <div className="absolute bottom-4 left-4 right-4 md:left-auto md:right-4 md:max-w-md bg-white/95 backdrop-blur-md rounded-2xl border border-[#E2E8F0] p-4 shadow-float flex items-center justify-between gap-3 animate-in fade-in duration-200 z-20">
+            <div className="flex items-center gap-3 min-w-0">
+              <img
+                src={selectedPlace.coverImage || selectedPlace.imageUrl || '/images/places/grand-courtyard.jpg'}
+                alt={selectedPlace.name}
+                className="w-12 h-12 rounded-xl object-cover shrink-0"
+              />
+              <div className="min-w-0">
+                <h4 className="text-xs font-bold text-[#151C27] truncate">{selectedPlace.name}</h4>
+                <p className="text-[11px] text-[#555E74] truncate">{selectedPlace.address || selectedPlace.city}</p>
+                <span className="text-[10px] text-[#006765] font-semibold">
+                  ★ {selectedPlace.rating} • {selectedPlace.category}
+                </span>
+              </div>
             </div>
 
-            <h3 className="font-bold text-sm text-[#151C27] truncate">
-              {selectedPlace.name}
-            </h3>
-
-            <div className="flex items-center gap-2 text-xs text-[#555E74]">
-              <span className="font-bold text-[#151C27]">★ {selectedPlace.rating}</span>
-              <span>•</span>
-              <span className="text-emerald-700 font-semibold">{selectedPlace.openingStatus}</span>
-              <span>•</span>
-              <span>{selectedPlace.distance}</span>
-            </div>
-
-            <div className="flex items-center gap-2 pt-1">
-              <Button
-                size="sm"
-                fullWidth
-                icon={<Eye size={13} />}
-                onClick={() => navigate(`/place/${selectedPlace.id}`)}
+            <div className="flex items-center gap-2 shrink-0">
+              <a
+                href={getGoogleMapsSearchUrl(selectedPlace)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Get Directions in Google Maps"
+                className="px-3 py-1.5 bg-[#006765] hover:bg-[#005553] text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm"
               >
-                View Details
-              </Button>
-              <button className="p-2 rounded-button border border-[#E2E8F0] hover:bg-[#F0F3FF] text-[#555E74]">
-                <Bookmark size={15} />
+                <Navigation size={13} />
+                <span>Route</span>
+              </a>
+              <button
+                onClick={() => navigate(`/place/${selectedPlace.slug || selectedPlace.id || (selectedPlace as any)._id}`)}
+                title="View Full Place Page"
+                className="p-2 border border-[#E2E8F0] hover:bg-[#F0F3FF] text-[#151C27] rounded-lg text-xs font-semibold transition-colors"
+              >
+                <ExternalLink size={14} />
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Floating Bottom Right Map Layers Toggle & Zoom */}
-      <div className="absolute bottom-6 right-6 z-20 flex flex-col items-end gap-2">
-        <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-[#E2E8F0] shadow-md text-xs font-semibold">
-          {(['Roads', 'Satellite', 'Heatmap'] as const).map((layer) => (
-            <button
-              key={layer}
-              onClick={() => setMapLayer(layer)}
-              className={`px-3 py-1 rounded-lg transition-colors ${
-                mapLayer === layer ? 'bg-[#006765] text-white' : 'text-[#555E74] hover:bg-[#F0F3FF]'
-              }`}
-            >
-              {layer}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex flex-col bg-white rounded-xl border border-[#E2E8F0] shadow-md overflow-hidden">
-          <button className="p-2 text-[#555E74] hover:bg-[#F0F3FF] border-b border-[#F1F5F9]">
-            <Plus size={16} />
-          </button>
-          <button className="p-2 text-[#555E74] hover:bg-[#F0F3FF]">
-            <Minus size={16} />
-          </button>
-        </div>
+        )}
       </div>
     </div>
   );

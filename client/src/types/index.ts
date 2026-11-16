@@ -1,47 +1,81 @@
 export interface Place {
   id: string;
+  _id?: string;
+  slug?: string;
   name: string;
   category: string;
+  subCategory?: string;
+  status?: string;
   rating: number;
-  reviewsCount: number;
+  reviewsCount?: number;
+  reviewCount?: number;
   address: string;
   city: string;
-  imageUrl: string;
-  priceLevel: '$' | '$$' | '$$$' | '$$$$';
+  location?: any;
+  tagline?: string;
+  distance?: string;
+  distanceKm?: number;
+  imageUrl?: string;
+  coverImage?: string;
+  images?: string[];
+  galleryImages?: string[];
+  priceLevel?: '$' | '$$' | '$$$' | '$$$$' | string;
+  priceRange?: string;
   cuisines?: string[];
   features?: string[];
+  facilities?: string[];
   isVerified?: boolean;
-  openingStatus?: 'Open Now' | 'Closed' | 'Closes 5 PM' | 'Open 24h';
+  openingStatus?: string;
+  openingHours?: any;
+  timings?: string;
   phone?: string;
+  email?: string;
   description?: string;
-  distanceKm?: number;
+  matchPercentage?: number;
+  isWishlisted?: boolean;
+  featured?: boolean;
+  trending?: boolean;
+  hiddenGem?: boolean;
   latitude?: number;
   longitude?: number;
 }
 
 export interface Review {
   id: string;
-  placeId: string;
+  _id?: string;
+  placeId: any;
   userName: string;
   userAvatar?: string;
   userGender?: 'male' | 'female';
+  userRole?: string;
   rating: number;
-  date: string;
+  status?: 'pending' | 'approved' | 'rejected' | string;
+  date?: string;
+  createdAt?: string;
   content: string;
-  likes: number;
+  comment?: string;
+  title?: string;
+  likes?: number;
   tags?: string[];
+  verified?: boolean;
   ownerReply?: {
-    date: string;
+    date: string | Date;
     content: string;
   };
 }
 
 export interface Trip {
   id: string;
+  _id?: string;
   title: string;
+  destination?: string;
   startDate: string;
   endDate: string;
-  coverImage: string;
+  durationDays?: number;
+  travelersCount?: number;
+  pace?: string;
+  interests?: string[];
+  coverImage?: string;
   stopsCount: number;
   places: {
     placeId: string;
@@ -50,6 +84,7 @@ export interface Trip {
     dayNumber: number;
     time?: string;
     imageUrl?: string;
+    address?: string;
   }[];
 }
 
@@ -63,12 +98,15 @@ export interface Category {
 
 export interface User {
   id: string;
+  _id?: string;
   name: string;
   email: string;
   role: 'user' | 'owner' | 'admin';
+  status?: 'active' | 'suspended';
   avatar?: string;
   gender?: 'male' | 'female';
   interests?: string[];
   city?: string;
+  phone?: string;
   createdAt: string;
 }

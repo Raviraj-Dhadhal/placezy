@@ -1,10 +1,15 @@
 # ==========================================
-# Dependencies
+# Dependencies & Local Profiles
 # ==========================================
 node_modules/
 */node_modules/
 .pnp
 .pnp.js
+.chrome-dev/
+.chrome-dev-profile/
+AntigravityChrome/
+data/db/
+data/
 
 # ==========================================
 # Environment Variables & Private Secrets
@@ -57,9 +62,19 @@ temp_images/
 temp/
 tmp/
 *.tmp
+server/uploads/*
+!server/uploads/.gitkeep
 
 # ==========================================
-# Documentation Exclusions for Public Git
-# (Strictly keep only public README.md)
+# Heavy PDFs / Assets
+# ==========================================
+placezy.pdf
+database_dump/*
+
+# ==========================================
+# Documentation & Notes Exclusions for Git
+# (Strictly ignore all .md files from git publication)
 # ==========================================
 *.md
+**/*.md
+ReadMe/

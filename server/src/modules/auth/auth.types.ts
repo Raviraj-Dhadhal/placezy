@@ -1,10 +1,12 @@
 export interface RegisterDTO {
   name: string;
   email: string;
+  phone?: string;
   password: string;
   gender?: 'male' | 'female';
   interests?: string[];
   role?: 'user' | 'owner';
+  city?: string;
 }
 
 export interface LoginDTO {
@@ -20,5 +22,6 @@ export interface AuthResponse {
     email: string;
     role: string;
     avatar?: string;
+    gender?: 'male' | 'female';
   };
 }

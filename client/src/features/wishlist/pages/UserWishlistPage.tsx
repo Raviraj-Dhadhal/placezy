@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MOCK_PLACES } from '../../../utils/mockData';
+import api from '../../../services/api';
+import type { Place } from '../../../types';
 import { PlaceCard } from '../../places/components/PlaceCard';
 import { Button } from '../../../components/ui/Button';
 import { Heart, Compass, ArrowRight } from 'lucide-react';
@@ -8,23 +9,47 @@ import { Heart, Compass, ArrowRight } from 'lucide-react';
 export const UserWishlistPage: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('All');
+  const [places, setPlaces] = useState<Place[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    api
+      .get('/wishlist')
+      .then((res) => {
+        if (isMounted && res.data?.data) {
+          setPlaces(res.data.data);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load wishlist:', err);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const tabs = [
-    { label: 'All', count: 6 },
-    { label: 'Restaurants', count: 2 },
-    { label: 'Cafés', count: 2 },
-    { label: 'Attractions', count: 1 },
-    { label: 'Shopping', count: 0 },
-    { label: 'Nature', count: 1 },
+    { label: 'All', count: places.length },
+    { label: 'Restaurants', count: places.filter((p) => p.category === 'Restaurants').length },
+    { label: 'Cafés', count: places.filter((p) => p.category === 'Cafés').length },
+    { label: 'Attractions', count: places.filter((p) => p.category === 'Attractions').length },
+    { label: 'Shopping', count: places.filter((p) => p.category === 'Shopping').length },
+    { label: 'Nature', count: places.filter((p) => p.category.includes('Nature')).length },
   ];
 
-  // Wishlisted items
-  const wishlistedPlaces = MOCK_PLACES.filter((p) => {
-    if (activeTab === 'All') return p.isWishlisted;
-    if (activeTab === 'Restaurants') return p.category === 'Restaurants' && p.isWishlisted;
-    if (activeTab === 'Cafés') return p.category === 'Cafés' && p.isWishlisted;
-    if (activeTab === 'Attractions') return p.category === 'Attractions' && p.isWishlisted;
-    if (activeTab === 'Nature') return p.category === 'Nature & Parks' && p.isWishlisted;
+  // Wishlisted items filtered by tab
+  const wishlistedPlaces = places.filter((p) => {
+    if (activeTab === 'All') return true;
+    if (activeTab === 'Restaurants') return p.category === 'Restaurants';
+    if (activeTab === 'Cafés') return p.category === 'Cafés';
+    if (activeTab === 'Attractions') return p.category === 'Attractions';
+    if (activeTab === 'Shopping') return p.category === 'Shopping';
+    if (activeTab === 'Nature') return p.category.includes('Nature');
     return false;
   });
 
@@ -38,7 +63,7 @@ export const UserWishlistPage: React.FC = () => {
               My Wishlist
             </h1>
             <span className="text-xs font-semibold bg-[#CFE7E6]/50 text-[#006765] px-2.5 py-0.5 rounded-full border border-[#006765]/20">
-              6 Saved Places in Rajkot
+              {places.length} Saved Places in Rajkot
             </span>
           </div>
           <p className="text-xs text-[#555E74] mt-1">
@@ -77,12 +102,35 @@ export const UserWishlistPage: React.FC = () => {
         ))}
       </div>
 
-      {/* 6-Card Saved Grid matching Screen 13 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {wishlistedPlaces.map((place) => (
-          <PlaceCard key={place.id} place={place} />
-        ))}
-      </div>
+      {/* Saved Grid matching Screen 13 */}
+      {loading ? (
+        <div className="py-16 text-center text-xs text-[#555E74]">
+          Loading your saved wishlist places from database...
+        </div>
+      ) : wishlistedPlaces.length === 0 ? (
+        <div className="py-16 bg-white rounded-2xl border border-[#E2E8F0] text-center space-y-3 p-8">
+          <Heart size={36} className="mx-auto text-slate-300" />
+          <h3 className="text-base font-bold text-[#151C27]">Your wishlist is empty</h3>
+          <p className="text-xs text-[#555E74] max-w-sm mx-auto">
+            Tap the heart icon on any café, restaurant, or heritage site across Placezy to save it here.
+          </p>
+          <Button size="sm" onClick={() => navigate('/explore')}>
+            Discover Places
+          </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {wishlistedPlaces.map((place) => (
+            <PlaceCard
+              key={place.id || (place as any)._id}
+              place={place}
+              onWishlistToggle={(id) => {
+                setPlaces((prev) => prev.filter((p) => (p.id || (p as any)._id) !== id && p.slug !== id));
+              }}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Bottom Discovery Banner */}
       <div className="bg-white p-6 rounded-2xl border border-[#E2E8F0] shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4 mt-8">

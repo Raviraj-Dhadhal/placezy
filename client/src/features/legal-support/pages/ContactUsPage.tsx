@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
-import { Mail, Phone, MapPin, Clock, Send, CheckCircle2 } from 'lucide-react';
+import { Mail, Phone, MapPin, Clock, Send, CheckCircle2, AlertCircle } from 'lucide-react';
+import api from '../../../services/api';
 
 export const ContactUsPage: React.FC = () => {
   const [fullName, setFullName] = useState('');
@@ -9,10 +10,32 @@ export const ContactUsPage: React.FC = () => {
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    setErrorMsg('');
+    setLoading(true);
+
+    try {
+      const res = await api.post('/contact', {
+        fullName,
+        email,
+        subject,
+        message,
+      });
+
+      if (res.data?.success) {
+        setSubmitted(true);
+      } else {
+        setErrorMsg(res.data?.message || 'Failed to submit inquiry.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || 'Could not send message. Please ensure backend is running.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -94,6 +117,13 @@ export const ContactUsPage: React.FC = () => {
             <h3 className="text-base font-bold text-[#151C27] mb-1">Send Us a Message</h3>
             <p className="text-xs text-[#555E74] mb-6">Fill in the fields below and we'll get back to you shortly.</p>
 
+            {errorMsg && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs flex items-center gap-2">
+                <AlertCircle size={15} className="shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
             {submitted ? (
               <div className="p-8 text-center bg-emerald-50 border border-emerald-200 rounded-xl space-y-3">
                 <CheckCircle2 size={40} className="text-emerald-600 mx-auto" />
@@ -151,10 +181,11 @@ export const ContactUsPage: React.FC = () => {
                   type="submit"
                   fullWidth
                   size="lg"
+                  disabled={loading}
                   icon={<Send size={15} />}
                   iconPosition="right"
                 >
-                  Send Message
+                  {loading ? 'Sending Message...' : 'Send Message'}
                 </Button>
 
                 <p className="text-center text-[10px] text-[#8E98B0]">

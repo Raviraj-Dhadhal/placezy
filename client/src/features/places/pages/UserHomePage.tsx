@@ -1,23 +1,67 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MOCK_PLACES } from '../../../utils/mockData';
+import { placesApi } from '../services/placesService';
+import type { Place } from '../../../types';
 import { PlaceCard } from '../../places/components/PlaceCard';
 import { ChevronRight, ArrowRight } from 'lucide-react';
+import { useAuth } from '../../../context/AuthContext';
 
 export const UserHomePage: React.FC = () => {
   const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth();
   const [activeCategory, setActiveCategory] = useState('All');
+  const [places, setPlaces] = useState<Place[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const categories = ['All', 'Cafés', 'Heritage & Culture', 'Fine Dining', 'Nature'];
 
-  // 1. Recommended for You (first 4 items)
-  const recommendedPlaces = MOCK_PLACES.filter((p) => p.featured || p.category === 'Cafés').slice(0, 4);
+  useEffect(() => {
+    let isMounted = true;
+    placesApi
+      .getAll()
+      .then((data) => {
+        if (isMounted) {
+          setPlaces(data);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load places from API:', err);
+        if (isMounted) setLoading(false);
+      });
 
-  // 2. Trending Places in Gujarat (Ahmedabad, Vadodara, Surat, Gandhinagar)
-  const trendingPlaces = MOCK_PLACES.filter((p) => p.trending);
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
-  // 3. Hidden Gems in Gujarat (Oasis, Adalaj, Polo Forest)
-  const hiddenGems = MOCK_PLACES.filter((p) => p.hiddenGem);
+  // 1. Recommended for You (first 4 items matching criteria)
+  const categoryMatch = (p: Place) => {
+    if (activeCategory === 'All') return true;
+    if (activeCategory === 'Cafés') return p.category.toLowerCase().includes('caf');
+    if (activeCategory === 'Heritage & Culture') return p.category.toLowerCase().includes('cultur') || p.category.toLowerCase().includes('herit') || p.category.toLowerCase().includes('attract');
+    if (activeCategory === 'Fine Dining') return p.category.toLowerCase().includes('restaur') || (p.priceLevel && p.priceLevel.length >= 2);
+    if (activeCategory === 'Nature') return p.category.toLowerCase().includes('park') || p.category.toLowerCase().includes('natur');
+    return p.category.toLowerCase().includes(activeCategory.toLowerCase());
+  };
+
+  const filteredByPills = places.filter(categoryMatch);
+
+  const recommendedPlaces = filteredByPills.slice(0, 4);
+
+  // 2. Trending Places in Gujarat
+  const trendingPlaces = filteredByPills.filter((p) => p.trending || p.rating >= 4.7).slice(0, 4);
+
+  // 3. Hidden Gems in Gujarat
+  const hiddenGems = filteredByPills.filter((p) => p.hiddenGem || (p.reviewsCount && p.reviewsCount < 50)).slice(0, 4);
+
+  // Determine display places based on active pill
+  const displayedPlaces =
+    activeCategory === 'All'
+      ? places
+      : places.filter((p) => p.category.toLowerCase().includes(activeCategory.toLowerCase()));
+
+  const greetingName = isAuthenticated && user ? user.name : 'Explorer';
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
@@ -28,7 +72,7 @@ export const UserHomePage: React.FC = () => {
             INSIDER EDITION • Today's Curated Dispatch
           </span>
           <h1 className="text-2xl md:text-3xl font-bold font-serif text-[#151C27] mt-1">
-            Good Morning, Mahek!
+            Good Morning, {greetingName}!
           </h1>
           <p className="text-xs text-[#555E74] mt-1.5 max-w-2xl leading-relaxed">
             Tailored to your taste for artisan cafes, heritage architecture, and tranquil courtyards in Rajkot.
@@ -124,8 +168,8 @@ export const UserHomePage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {hiddenGems.map((gem) => (
             <div
-              key={gem.id}
-              onClick={() => navigate(`/place/${gem.id}`)}
+              key={gem.id || (gem as any)._id}
+              onClick={() => navigate(`/place/${gem.slug || gem.id || (gem as any)._id}`)}
               className="bg-white rounded-2xl border border-[#E2E8F0] overflow-hidden hover:border-[#006765]/40 hover:shadow-card transition-all cursor-pointer flex flex-col justify-between"
             >
               <div>
@@ -150,11 +194,11 @@ export const UserHomePage: React.FC = () => {
                 <div className="p-4 space-y-2">
                   <h3 className="font-bold text-sm text-[#151C27]">{gem.name}</h3>
                   <p className="text-xs text-[#555E74] line-clamp-2 leading-relaxed">
-                    {gem.tagline}
+                    {gem.tagline || gem.description}
                   </p>
 
                   <div className="flex flex-wrap gap-1.5 pt-2">
-                    {gem.facilities.slice(0, 2).map((fac) => (
+                    {(gem.facilities || gem.features || ['Heritage', 'Serene']).slice(0, 2).map((fac: string) => (
                       <span
                         key={fac}
                         className="text-[10px] text-[#006765] bg-[#CFE7E6]/40 px-2 py-0.5 rounded-full font-medium"
@@ -167,7 +211,7 @@ export const UserHomePage: React.FC = () => {
               </div>
 
               <div className="px-4 pb-4 pt-2 border-t border-[#F1F5F9] flex items-center justify-between text-xs">
-                <span className="text-[#555E74] font-medium">{gem.distance}</span>
+                <span className="text-[#555E74] font-medium">{gem.distance || (gem.distanceKm ? `${gem.distanceKm} km` : 'Rajkot')}</span>
                 <span className="text-[#006765] font-bold flex items-center gap-1 hover:underline">
                   <span>Explore Place</span>
                   <ArrowRight size={13} />

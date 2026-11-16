@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MOCK_PLACES } from '../../../utils/mockData';
+import { placesApi } from '../services/placesService';
+import type { Place } from '../../../types';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import {
@@ -17,11 +18,24 @@ export const UserNearbyPage: React.FC = () => {
   const navigate = useNavigate();
   const [selectedRadius, setSelectedRadius] = useState('5 km');
   const [sortBy, setSortBy] = useState('Distance (Nearest)');
+  const [nearbyPlaces, setNearbyPlaces] = useState<Place[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const radiusOptions = ['1 km', '3 km', '5 km (Default)', '10 km'];
+  const radiusOptions = ['1 km', '3 km', '5 km', '10 km'];
+  const filteredNearby = nearbyPlaces.filter((p) => {
+    const numRadius = parseInt(selectedRadius, 10) || 5;
+    const placeDist = p.distanceKm || (parseFloat(p.distance || '2') || 2);
+    return placeDist <= numRadius;
+  });
 
-  // Nearby places around Rajkot (Kalawad road, Yagnik road, Jubilee garden)
-  const nearbyPlaces = MOCK_PLACES.filter((p) => p.city === 'Rajkot');
+  useEffect(() => {
+    placesApi
+      .getAll({ city: 'Rajkot' })
+      .then((data) => {
+        setNearbyPlaces(data);
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -79,10 +93,10 @@ export const UserNearbyPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Side (7 Cols): Place Cards List */}
         <div className="lg:col-span-7 space-y-4">
-          {nearbyPlaces.map((place, idx) => (
+          {filteredNearby.map((place, idx) => (
             <div
-              key={place.id}
-              onClick={() => navigate(`/place/${place.id}`)}
+              key={place.id || (place as any)._id}
+              onClick={() => navigate(`/place/${place.slug || place.id || (place as any)._id}`)}
               className="bg-white rounded-2xl border border-[#E2E8F0] p-4 hover:border-[#006765]/40 hover:shadow-card transition-all cursor-pointer flex flex-col sm:flex-row gap-4 relative group"
             >
               {/* Image with # Rank Badge */}
@@ -116,15 +130,15 @@ export const UserNearbyPage: React.FC = () => {
                   <div className="flex items-center gap-2 text-xs text-[#555E74] mt-0.5">
                     <span className="flex items-center gap-1">
                       <MapPin size={12} className="text-[#006765]" />
-                      {place.location}
+                      {typeof place.location === 'string' ? place.location : (place.address || place.city)}
                     </span>
                     <span>•</span>
-                    <span className="font-semibold text-[#006765]">{place.distance} away</span>
+                    <span className="font-semibold text-[#006765]">{place.distance || (place.distanceKm ? `${place.distanceKm} km` : 'Near you')} away</span>
                     <span>•</span>
-                    <span>{place.priceLevel}</span>
+                    <span>{place.priceLevel || '₹₹'}</span>
                   </div>
                   <p className="text-xs text-[#555E74] line-clamp-1 mt-1">
-                    "{place.tagline}"
+                    "{place.tagline || place.description}"
                   </p>
                 </div>
 
@@ -139,7 +153,8 @@ export const UserNearbyPage: React.FC = () => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        window.open(`https://maps.google.com/?q=${place.address}`, '_blank');
+                        const queryTarget = encodeURIComponent(`${place.name} ${place.address || 'Rajkot Gujarat'}`);
+                        window.open(`https://www.google.com/maps/search/?api=1&query=${queryTarget}`, '_blank');
                       }}
                       className="p-1.5 rounded-lg border border-[#E2E8F0] hover:bg-[#F0F3FF] text-[#555E74] text-xs flex items-center gap-1 font-medium"
                     >

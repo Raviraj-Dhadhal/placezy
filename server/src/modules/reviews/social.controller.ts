@@ -7,7 +7,7 @@ export class ReviewController {
   static async create(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       if (!req.user) {
-        sendResponse(res, 401, false, 'Unauthorized');
+        sendResponse(res, 401, false, 'Authentication required to write a review');
         return;
       }
       const review = await SocialService.createReview(
@@ -16,17 +16,36 @@ export class ReviewController {
         undefined,
         req.body
       );
-      sendResponse(res, 201, true, 'Review submitted successfully', review);
+      sendResponse(
+        res,
+        201,
+        true,
+        'Review submitted successfully! It will be published upon admin moderation.',
+        review
+      );
     } catch (error) {
       next(error);
     }
   }
 
-  static async getByPlace(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  static async getApprovedByPlace(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const placeId = Array.isArray(req.params.placeId) ? req.params.placeId[0] : req.params.placeId;
-      const reviews = await SocialService.getPlaceReviews(placeId);
-      sendResponse(res, 200, true, 'Reviews retrieved successfully', reviews);
+      const reviews = await SocialService.getApprovedPlaceReviews(placeId);
+      sendResponse(res, 200, true, 'Approved reviews retrieved', reviews);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getMyReviews(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        sendResponse(res, 401, false, 'Unauthorized');
+        return;
+      }
+      const reviews = await SocialService.getMyReviews(req.user.userId);
+      sendResponse(res, 200, true, 'My reviews retrieved', reviews);
     } catch (error) {
       next(error);
     }
@@ -99,6 +118,19 @@ export class NotificationController {
       const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
       const notif = await SocialService.markNotificationRead(id, req.user.userId);
       sendResponse(res, 200, true, 'Notification marked as read', notif);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async markAllRead(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        sendResponse(res, 401, false, 'Unauthorized');
+        return;
+      }
+      await SocialService.markAllNotificationsRead(req.user.userId);
+      sendResponse(res, 200, true, 'All notifications marked as read');
     } catch (error) {
       next(error);
     }

@@ -1,16 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Avatar } from '../../../components/ui/Avatar';
+import { adminApi } from '../services/adminService';
 import {
   Users,
   Search,
-  Filter,
   CheckCircle,
   Ban,
-  MoreVertical,
   X,
-  FileDown,
   Plus,
   Mail,
   Phone,
@@ -19,70 +17,80 @@ import {
 } from 'lucide-react';
 
 export const AdminUsersPage: React.FC = () => {
-  const [selectedUser, setSelectedUser] = useState<any | null>({
-    name: 'Harshvardhan Jadeja',
-    gender: 'male',
-    role: 'Verified Explorer • Rajkot Local',
-    email: 'harsh.jadeja@gmail.com',
-    phone: '+91 98251 44521',
-    city: 'Rajkot, Gujarat',
-    registered: 'Oct 24, 2026',
-    status: 'Active',
-    placesSaved: 48,
-    itineraries: 12,
-    reviews: 18,
-  });
+  const [users, setUsers] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Suspended'>('All');
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  const users = [
-    {
-      id: 'u1',
-      name: 'Harshvardhan Jadeja',
-      gender: 'male',
-      role: 'Local Explorer',
-      email: 'harsh.jadeja@gmail.com',
-      mobile: '+91 98251 44521',
-      city: 'Rajkot',
-      registered: 'Oct 24, 2026',
-      status: 'Active',
-    },
-    {
-      id: 'u2',
-      name: 'Priyanshi Mehta',
-      gender: 'female',
-      role: 'Food & Heritage Curator',
-      email: 'priyanshi.m@outlook.com',
-      mobile: '+91 97123 88902',
-      city: 'Rajkot',
-      registered: 'Oct 19, 2026',
-      status: 'Active',
-    },
-    {
-      id: 'u3',
-      name: 'Bhavik Somani',
-      gender: 'male',
-      role: 'New Sign-up',
-      email: 'bhavik.somani@yahoo.com',
-      mobile: '+91 98980 12345',
-      city: 'Rajkot',
-      registered: 'Oct 10, 2026',
-      status: 'Active',
-    },
-    {
-      id: 'u4',
-      name: 'Maulik Dave',
-      gender: 'male',
-      role: 'Commuter Traveler',
-      email: 'maulik.dave@gmail.com',
-      mobile: '+91 94260 77819',
-      city: 'Ahmedabad',
-      registered: 'Sep 28, 2026',
-      status: 'Active',
-    },
-  ];
+  const fetchUsers = () => {
+    setLoading(true);
+    adminApi.getUsers().then((data) => {
+      setUsers(data || []);
+      if (data && data.length > 0) {
+        setSelectedUser((prev: any) => {
+          if (!prev) return data[0];
+          const found = data.find((u: any) => (u.id || u._id) === (prev.id || prev._id));
+          return found || data[0];
+        });
+      }
+    }).finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const handleToggleStatus = async (userToUpdate: any) => {
+    const userId = userToUpdate.id || userToUpdate._id;
+    const currentStatus = userToUpdate.status || 'active';
+    const nextStatus = currentStatus === 'suspended' ? 'active' : 'suspended';
+
+    try {
+      setActionLoading(true);
+      await adminApi.updateUserStatus(userId, nextStatus);
+      // Immediately reflect in local state and database
+      setUsers((prev) =>
+        prev.map((u) => {
+          if ((u.id || u._id) === userId) {
+            return { ...u, status: nextStatus };
+          }
+          return u;
+        })
+      );
+      if (selectedUser && (selectedUser.id || selectedUser._id) === userId) {
+        setSelectedUser({ ...selectedUser, status: nextStatus });
+      }
+    } catch (err) {
+      console.error('Failed to update user status:', err);
+      alert('Could not update user status in database.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const totalUsers = users.length;
+  const activeCount = users.filter((u) => (u.status || 'active') === 'active').length;
+  const suspendedCount = users.filter((u) => u.status === 'suspended').length;
+
+  const filteredUsers = users.filter((u) => {
+    const currentStatus = u.status || 'active';
+    if (statusFilter === 'Active' && currentStatus !== 'active') return false;
+    if (statusFilter === 'Suspended' && currentStatus !== 'suspended') return false;
+
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      (u.name && u.name.toLowerCase().includes(q)) ||
+      (u.email && u.email.toLowerCase().includes(q)) ||
+      (u.role && u.role.toLowerCase().includes(q))
+    );
+  });
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Top Header matching Screen 02 Module 03 */}
+      {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold font-serif text-[#151C27]">
@@ -94,36 +102,35 @@ export const AdminUsersPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" icon={<FileDown size={14} />}>
-            Export Users
-          </Button>
           <Button size="sm" icon={<Plus size={14} />}>
-            + Add New User
+            Add New User
           </Button>
         </div>
       </div>
 
-      {/* 4 Metric KPI Cards matching Screen 02 */}
+      {/* 4 Metric KPI Cards backed by database counts */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-2xl border border-[#E2E8F0] shadow-sm">
           <span className="text-xs text-[#555E74]">Total Users</span>
-          <span className="text-2xl font-bold font-serif text-[#151C27] block mt-1">18,420</span>
-          <span className="text-[10px] text-emerald-700 font-semibold">↑ 8.5% this month</span>
+          <span className="text-2xl font-bold font-serif text-[#151C27] block mt-1">{totalUsers}</span>
+          <span className="text-[10px] text-emerald-700 font-semibold">Registered in MongoDB</span>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-[#E2E8F0] shadow-sm">
           <span className="text-xs text-[#555E74]">Active Users</span>
-          <span className="text-2xl font-bold font-serif text-[#151C27] block mt-1">16,890</span>
-          <span className="text-[10px] text-[#006765] font-semibold">91.7% of total directory</span>
-        </div>
-        <div className="bg-white p-4 rounded-2xl border border-[#E2E8F0] shadow-sm">
-          <span className="text-xs text-[#555E74]">New Users (This Month)</span>
-          <span className="text-2xl font-bold font-serif text-[#151C27] block mt-1">1,240</span>
-          <span className="text-[10px] text-emerald-700 font-semibold">↑ 14% vs last month</span>
+          <span className="text-2xl font-bold font-serif text-[#151C27] block mt-1">{activeCount}</span>
+          <span className="text-[10px] text-[#006765] font-semibold">
+            {totalUsers > 0 ? `${Math.round((activeCount / totalUsers) * 100)}% active accounts` : '0%'}
+          </span>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-[#E2E8F0] shadow-sm">
           <span className="text-xs text-[#555E74]">Suspended Users</span>
-          <span className="text-2xl font-bold font-serif text-red-600 block mt-1">290</span>
-          <span className="text-[10px] text-[#555E74]">12 under review</span>
+          <span className="text-2xl font-bold font-serif text-red-600 block mt-1">{suspendedCount}</span>
+          <span className="text-[10px] text-[#555E74]">Restricted from login</span>
+        </div>
+        <div className="bg-white p-4 rounded-2xl border border-[#E2E8F0] shadow-sm">
+          <span className="text-xs text-[#555E74]">Primary Region</span>
+          <span className="text-2xl font-bold font-serif text-[#151C27] block mt-1">Rajkot</span>
+          <span className="text-[10px] text-[#006765] font-semibold">Gujarat Territory</span>
         </div>
       </div>
 
@@ -133,100 +140,116 @@ export const AdminUsersPage: React.FC = () => {
         <div className="lg:col-span-8 bg-white rounded-2xl border border-[#E2E8F0] p-5 shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="w-full sm:w-72">
-              <Input placeholder="Search by name, email or city..." icon={<Search size={14} />} />
+              <Input
+                placeholder="Search by name, email or role..."
+                icon={<Search size={14} />}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
 
             <div className="flex items-center gap-1.5 text-xs text-[#555E74]">
-              {['All Users', 'Active', 'Suspended'].map((f, idx) => (
+              {(['All', 'Active', 'Suspended'] as const).map((f) => (
                 <button
                   key={f}
+                  onClick={() => setStatusFilter(f)}
                   className={`px-3 py-1 rounded-lg font-semibold transition-colors ${
-                    idx === 0 ? 'bg-[#006765] text-white' : 'hover:bg-[#F0F3FF]'
+                    statusFilter === f ? 'bg-[#006765] text-white shadow-sm' : 'hover:bg-[#F0F3FF]'
                   }`}
                 >
-                  {f}
+                  {f} {f === 'All' ? `(${totalUsers})` : f === 'Active' ? `(${activeCount})` : `(${suspendedCount})`}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-[#E2E8F0] text-[#555E74] font-bold text-[10px] uppercase">
-                  <th className="pb-2.5 pl-2">User</th>
-                  <th className="pb-2.5">Email</th>
-                  <th className="pb-2.5">Mobile</th>
-                  <th className="pb-2.5">City</th>
-                  <th className="pb-2.5">Registered</th>
-                  <th className="pb-2.5 pr-2 text-right">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#F1F5F9]">
-                {users.map((u) => (
-                  <tr
-                    key={u.id}
-                    onClick={() => setSelectedUser(u)}
-                    className="hover:bg-[#F0F3FF] cursor-pointer transition-colors"
-                  >
-                    <td className="py-3 pl-2">
-                      <div className="flex items-center gap-2.5">
-                        <Avatar gender={u.gender as any} size={28} />
-                        <div>
-                          <span className="font-bold text-[#151C27] block">{u.name}</span>
-                          <span className="text-[10px] text-[#555E74]">{u.role}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 text-[#555E74]">{u.email}</td>
-                    <td className="py-3 text-[#555E74]">{u.mobile}</td>
-                    <td className="py-3 text-[#555E74]">{u.city}</td>
-                    <td className="py-3 text-[#555E74]">{u.registered}</td>
-                    <td className="py-3 pr-2 text-right">
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                        Active
-                      </span>
-                    </td>
+            {loading ? (
+              <div className="py-12 text-center text-xs text-[#555E74]">Loading users from MongoDB...</div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="py-12 text-center text-xs text-[#555E74]">No users found matching filter.</div>
+            ) : (
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-[#E2E8F0] text-[#555E74] font-bold text-[10px] uppercase">
+                    <th className="pb-2.5 pl-2">User</th>
+                    <th className="pb-2.5">Email</th>
+                    <th className="pb-2.5">Role</th>
+                    <th className="pb-2.5">City</th>
+                    <th className="pb-2.5 pr-2 text-right">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-[#F1F5F9]">
+                  {filteredUsers.map((u) => {
+                    const isSuspended = u.status === 'suspended';
+                    const isSelected = selectedUser && (selectedUser.id || selectedUser._id) === (u.id || u._id);
+                    return (
+                      <tr
+                        key={u.id || u._id}
+                        onClick={() => setSelectedUser(u)}
+                        className={`hover:bg-[#F0F3FF] cursor-pointer transition-colors ${
+                          isSelected ? 'bg-[#F0F3FF]/70' : ''
+                        }`}
+                      >
+                        <td className="py-3 pl-2">
+                          <div className="flex items-center gap-2.5">
+                            <Avatar gender={u.gender || (/(aarav|gaurav|bhavik|raviraj|devang|harish|rajesh)/i.test(u.name) ? 'male' : 'female')} size={28} />
+                            <div>
+                              <span className="font-bold text-[#151C27] block">{u.name}</span>
+                              <span className="text-[10px] text-[#555E74] capitalize">{u.role}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3 text-[#555E74]">{u.email}</td>
+                        <td className="py-3 text-[#555E74] capitalize">{u.role}</td>
+                        <td className="py-3 text-[#555E74]">{u.city || 'Rajkot'}</td>
+                        <td className="py-3 pr-2 text-right">
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                              isSuspended
+                                ? 'text-red-700 bg-red-50 border-red-200'
+                                : 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                            }`}
+                          >
+                            {isSuspended ? 'Suspended' : 'Active'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
 
-        {/* Slide-over Profile Drawer (4 Cols) matching Screen 02 */}
+        {/* Slide-over Profile Drawer (4 Cols) */}
         {selectedUser && (
           <div className="lg:col-span-4 bg-white rounded-2xl border border-[#E2E8F0] p-5 shadow-sm space-y-4">
             <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
               <span className="text-xs font-bold text-[#151C27] uppercase tracking-wider">
                 User Profile Details
               </span>
-              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                Active
+              <span
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  selectedUser.status === 'suspended'
+                    ? 'text-red-700 bg-red-50 border-red-200'
+                    : 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                }`}
+              >
+                {selectedUser.status === 'suspended' ? 'Suspended' : 'Active'}
               </span>
             </div>
 
             <div className="flex items-center gap-3">
-              <Avatar gender={selectedUser.gender || 'male'} size={48} name={selectedUser.name} />
+              <Avatar
+                gender={selectedUser.gender || (/(aarav|gaurav|bhavik|raviraj|devang|harish|rajesh)/i.test(selectedUser.name) ? 'male' : 'female')}
+                size={48}
+                name={selectedUser.name}
+              />
               <div>
                 <h3 className="font-bold text-sm text-[#151C27]">{selectedUser.name}</h3>
-                <span className="text-[10px] text-[#006765] font-semibold">{selectedUser.role}</span>
-              </div>
-            </div>
-
-            {/* Quick Metrics */}
-            <div className="grid grid-cols-3 gap-2 text-center pt-1">
-              <div className="p-2.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl">
-                <span className="text-sm font-bold text-[#151C27] block">48</span>
-                <span className="text-[9px] text-[#555E74]">Places Saved</span>
-              </div>
-              <div className="p-2.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl">
-                <span className="text-sm font-bold text-[#151C27] block">12</span>
-                <span className="text-[9px] text-[#555E74]">Itineraries</span>
-              </div>
-              <div className="p-2.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl">
-                <span className="text-sm font-bold text-[#151C27] block">18</span>
-                <span className="text-[9px] text-[#555E74]">Reviews</span>
+                <span className="text-[10px] text-[#006765] font-semibold capitalize">{selectedUser.role} Account</span>
               </div>
             </div>
 
@@ -238,26 +261,36 @@ export const AdminUsersPage: React.FC = () => {
               </div>
               <div className="flex items-center gap-2">
                 <Phone size={14} className="text-[#006765]" />
-                <span>{selectedUser.mobile || '+91 98251 44521'}</span>
+                <span>{selectedUser.phone || '+91 98251 44521'}</span>
               </div>
               <div className="flex items-center gap-2">
                 <MapPin size={14} className="text-[#006765]" />
-                <span>Rajkot, Gujarat (360005)</span>
+                <span>{selectedUser.city || 'Rajkot'}, Gujarat</span>
               </div>
               <div className="flex items-center gap-2">
                 <Calendar size={14} className="text-[#006765]" />
-                <span>Registered: Oct 24, 2026</span>
+                <span>
+                  Registered: {selectedUser.createdAt ? new Date(selectedUser.createdAt).toLocaleDateString() : 'Active Member'}
+                </span>
               </div>
             </div>
 
-            {/* Admin Actions */}
-            <div className="pt-3 border-t border-[#F1F5F9] grid grid-cols-2 gap-2 text-xs">
-              <Button size="sm" variant="outline">
-                Edit Details
+            {/* Direct Status Toggle Action (Updates MongoDB Directly Without Dropdown) */}
+            <div className="pt-3 border-t border-[#F1F5F9] space-y-2">
+              <Button
+                size="sm"
+                fullWidth
+                variant={selectedUser.status === 'suspended' ? 'outline' : 'danger'}
+                disabled={actionLoading}
+                onClick={() => handleToggleStatus(selectedUser)}
+              >
+                {selectedUser.status === 'suspended' ? 'Activate User' : 'Suspend User'}
               </Button>
-              <Button size="sm" variant="danger">
-                Suspend User
-              </Button>
+              <p className="text-[10px] text-[#555E74] text-center">
+                {selectedUser.status === 'suspended'
+                  ? 'Suspended users are blocked from logging in across the web platform.'
+                  : 'Clicking Suspend immediately updates MongoDB and revokes access.'}
+              </p>
             </div>
           </div>
         )}

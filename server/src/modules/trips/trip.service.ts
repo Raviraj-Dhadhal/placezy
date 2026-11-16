@@ -17,6 +17,17 @@ export class TripService {
     return TripModel.findOne({ _id: tripId, userId });
   }
 
+  static async updateTrip(tripId: string, userId: string, updateData: Partial<ITrip>): Promise<ITrip | null> {
+    if (updateData.places) {
+      updateData.stopsCount = updateData.places.length;
+    }
+    return TripModel.findOneAndUpdate(
+      { _id: tripId, userId },
+      { $set: updateData },
+      { new: true }
+    );
+  }
+
   static async updateTripStops(tripId: string, userId: string, places: any[]): Promise<ITrip | null> {
     return TripModel.findOneAndUpdate(
       { _id: tripId, userId },

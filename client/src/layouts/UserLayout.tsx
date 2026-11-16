@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { Logo } from '../components/shared/Logo';
 import { Footer } from '../components/shared/Footer';
+import { Avatar } from '../components/ui/Avatar';
+import { useAuth } from '../context/AuthContext';
 import {
   Compass,
   MapPin,
@@ -16,12 +18,15 @@ import {
   HelpCircle,
   Plus,
   Menu,
-  X
+  X,
+  LogIn,
+  LogOut
 } from 'lucide-react';
 
 export const UserLayout: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
+  const { user, isAuthenticated, logout, unreadNotificationsCount } = useAuth();
 
   const navItems = [
     { label: 'Home', path: '/', icon: <Compass size={18} /> },
@@ -50,22 +55,46 @@ export const UserLayout: React.FC = () => {
 
         {/* Global Search & Territory Selector */}
         <div className="flex items-center gap-3">
-          <div className="hidden lg:flex items-center gap-2 bg-[#F8FAFC] border border-[#E2E8F0] rounded-button px-3 py-1.5 w-80 text-xs text-[#555E74]">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!isAuthenticated) {
+                alert('Please sign in first to search places across Gujarat.');
+                navigate('/login');
+                return;
+              }
+              const input = (e.currentTarget.elements.namedItem('search') as HTMLInputElement)?.value;
+              if (input) navigate(`/explore?q=${encodeURIComponent(input)}`);
+            }}
+            className="hidden lg:flex items-center gap-2 bg-[#F8FAFC] border border-[#E2E8F0] rounded-button px-3 py-1.5 w-80 text-xs text-[#555E74]"
+          >
             <Search size={14} className="text-[#8E98B0]" />
             <input
+              name="search"
               type="text"
-              placeholder="Search settings or account details..."
+              placeholder="Search places, cafes, landmarks in Gujarat..."
               className="bg-transparent border-none outline-none w-full text-xs text-[#151C27]"
+              onFocus={() => {
+                if (!isAuthenticated) {
+                  alert('Please sign in first to search places.');
+                  navigate('/login');
+                }
+              }}
             />
-          </div>
+          </form>
 
           {/* Territory Badge */}
           <div className="hidden sm:flex items-center gap-1.5 bg-[#CFE7E6]/40 text-[#006765] px-3 py-1.5 rounded-full text-xs font-medium border border-[#006765]/20">
             <span className="w-1.5 h-1.5 rounded-full bg-[#006765] animate-pulse"></span>
-            <span>Rajkot, Gujarat</span>
+            <span>{localStorage.getItem('placezy_territory') || 'Rajkot, Gujarat'}</span>
             <span
-              onClick={() => navigate('/explore/filter')}
-              className="text-[#006765]/60 hover:underline cursor-pointer ml-1"
+              onClick={() => {
+                const current = localStorage.getItem('placezy_territory') || 'Rajkot, Gujarat';
+                const next = current.includes('Rajkot') ? 'Ahmedabad, Gujarat' : 'Rajkot, Gujarat';
+                localStorage.setItem('placezy_territory', next);
+                window.location.reload();
+              }}
+              className="text-[#006765]/60 hover:underline cursor-pointer ml-1 font-semibold"
             >
               (Change)
             </span>
@@ -77,25 +106,41 @@ export const UserLayout: React.FC = () => {
             className="p-2 text-[#555E74] hover:text-[#151C27] hover:bg-[#F0F3FF] rounded-full relative"
           >
             <Bell size={18} />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#006765]"></span>
+            {unreadNotificationsCount > 0 && (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#006765]"></span>
+            )}
           </button>
 
-          {/* User Profile Pill */}
-          <div
-            onClick={() => navigate('/profile')}
-            className="flex items-center gap-2 cursor-pointer p-1 rounded-full hover:bg-[#F0F3FF] transition-colors"
-          >
-            <img
-              src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80"
-              alt="Mahek"
-              className="w-8 h-8 rounded-full object-cover border border-[#E2E8F0]"
-            />
-            <div className="hidden md:flex flex-col text-left">
-              <span className="text-xs font-semibold text-[#151C27]">Mahek</span>
-              <span className="text-[10px] text-[#555E74]">Urban Explorer & Insider</span>
+          {/* User Profile Pill or Login Button */}
+          {isAuthenticated && user ? (
+            <div
+              onClick={() => navigate('/profile')}
+              className="flex items-center gap-2 cursor-pointer p-1 rounded-full hover:bg-[#F0F3FF] transition-colors"
+            >
+              <Avatar gender={user.gender || 'female'} size={32} name={user.name} />
+              <div className="hidden md:flex flex-col text-left">
+                <span className="text-xs font-semibold text-[#151C27]">{user.name}</span>
+                <span className="text-[10px] text-[#555E74] capitalize">{user.role} Insider</span>
+              </div>
+              <ChevronDown size={14} className="text-[#555E74] hidden md:block" />
             </div>
-            <ChevronDown size={14} className="text-[#555E74] hidden md:block" />
-          </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigate('/login')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E2E8F0] hover:bg-[#F0F3FF] text-xs font-semibold text-[#151C27] transition-colors"
+              >
+                <LogIn size={14} />
+                <span>Login</span>
+              </button>
+              <button
+                onClick={() => navigate('/register')}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#006765] hover:bg-[#005553] text-white text-xs font-semibold transition-colors shadow-sm"
+              >
+                <span>Sign Up</span>
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -185,6 +230,19 @@ export const UserLayout: React.FC = () => {
                 <HelpCircle size={16} />
                 <span>Help & Support</span>
               </NavLink>
+
+              {isAuthenticated && (
+                <button
+                  onClick={() => {
+                    logout();
+                    navigate('/');
+                  }}
+                  className="w-full flex items-center gap-3 px-3.5 py-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors text-left"
+                >
+                  <LogOut size={16} />
+                  <span>Logout</span>
+                </button>
+              )}
             </div>
           </div>
         </aside>

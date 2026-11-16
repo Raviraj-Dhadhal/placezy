@@ -1,5 +1,8 @@
 import { PlaceModel, IPlace } from './place.model';
 import { CategoryModel, ICategory } from '../categories/category.model';
+import { WishlistModel } from '../wishlist/wishlist.model';
+import '../users/user.model';
+import mongoose from 'mongoose';
 
 export interface PlaceFilters {
   category?: string;
@@ -8,10 +11,11 @@ export interface PlaceFilters {
   cuisine?: string;
   minRating?: number;
   priceLevel?: string;
+  userId?: string;
 }
 
 export class PlaceService {
-  static async getAll(filters: PlaceFilters): Promise<IPlace[]> {
+  static async getAll(filters: PlaceFilters): Promise<any[]> {
     const query: any = {};
     if (filters.category && filters.category !== 'All') {
       query.category = { $regex: new RegExp(`^${filters.category}$`, 'i') };
@@ -29,11 +33,65 @@ export class PlaceService {
     if (filters.priceLevel) {
       query.priceLevel = filters.priceLevel;
     }
-    return PlaceModel.find(query).sort({ rating: -1 });
+    // Only return approved/active venues for public discovery unless explicitly queried
+    query.status = 'active';
+    const places = await PlaceModel.find(query).sort({ rating: -1 });
+
+    let wishlistedSet = new Set<string>();
+    if (filters.userId) {
+      const wishlisted = await WishlistModel.find({ userId: filters.userId });
+      wishlistedSet = new Set(wishlisted.map((w) => w.placeId.toString()));
+    }
+
+    return places.map((p) => {
+      const obj: any = p.toObject();
+      const pId = p._id.toString();
+      const pSlug = p.slug;
+      obj.id = pSlug || pId;
+      obj._id = pId;
+      obj.isWishlisted = filters.userId
+        ? wishlistedSet.has(pId) || (pSlug ? wishlistedSet.has(pSlug) : false)
+        : false;
+      return obj;
+    });
   }
 
-  static async getById(id: string): Promise<IPlace | null> {
-    return PlaceModel.findById(id).populate('ownerId', 'name email avatar');
+  static async getById(id: string, userId?: string): Promise<any | null> {
+    if (!id || id === 'undefined' || id === 'null') return null;
+    let place: any = null;
+
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      try {
+        place = await PlaceModel.findById(id).populate('ownerId', 'name email avatar');
+      } catch (e) {
+        place = null;
+      }
+    }
+    if (!place) {
+      place = await PlaceModel.findOne({
+        $or: [
+          { slug: id },
+          { slug: id.toLowerCase() },
+          { name: new RegExp(`^${id}$`, 'i') }
+        ]
+      }).populate('ownerId', 'name email avatar');
+    }
+    if (!place) return null;
+
+    const obj: any = place.toObject();
+    const pId = place._id.toString();
+    const pSlug = place.slug;
+    obj.id = pSlug || pId;
+    obj._id = pId;
+
+    if (userId) {
+      const isWishlisted = await WishlistModel.exists({
+        userId,
+        placeId: { $in: [place._id, place.slug].filter(Boolean) },
+      });
+      obj.isWishlisted = !!isWishlisted;
+    }
+    return obj;
   }
 
   static async getNearby(lat: number, lng: number, radiusKm: number = 25): Promise<IPlace[]> {

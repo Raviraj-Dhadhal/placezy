@@ -4,11 +4,18 @@
   "description": "Placezy Modular REST API Server",
   "main": "dist/server.js",
   "scripts": {
-    "dev": "nodemon --exec ts-node src/server.ts",
+    "dev": "nodemon --watch src --ext ts,json --exec tsx src/server.ts",
+    "seed": "tsx src/seed.ts",
     "build": "tsc",
     "start": "node dist/server.js"
   },
-  "keywords": ["placezy", "api", "express", "mongoose", "typescript"],
+  "keywords": [
+    "placezy",
+    "api",
+    "express",
+    "mongoose",
+    "typescript"
+  ],
   "author": "Placezy Team",
   "license": "ISC",
   "dependencies": {
@@ -28,7 +35,7 @@
     "@types/multer": "^2.3.0",
     "@types/node": "^26.6.6",
     "nodemon": "^3.1.14",
-    "ts-node": "^10.9.2",
+    "tsx": "^4.19.3",
     "typescript": "^7.0.2"
   }
 }

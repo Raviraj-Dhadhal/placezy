@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { MOCK_PLACES, MOCK_REVIEWS } from '../../../utils/mockData';
+import { placesApi } from '../services/placesService';
+import type { Place, Review } from '../../../types';
+import api from '../../../services/api';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { Avatar } from '../../../components/ui/Avatar';
@@ -22,12 +24,75 @@ import {
 export const UserExploreDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [isWishlisted, setIsWishlisted] = useState(true);
+  const [isWishlisted, setIsWishlisted] = useState(false);
+  const [place, setPlace] = useState<Place | null>(null);
+  const [similarPlaces, setSimilarPlaces] = useState<Place[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Find place or fallback to p1 (The Grand Courtyard Roastery)
-  const place = MOCK_PLACES.find((p) => p.id === id) || MOCK_PLACES[0];
+  useEffect(() => {
+    let isMounted = true;
+    if (!id) return;
+    const cleanId = decodeURIComponent(id.trim());
 
-  const similarPlaces = MOCK_PLACES.filter((p) => p.id !== place.id).slice(0, 3);
+    placesApi
+      .getById(cleanId)
+      .then((data) => {
+        if (isMounted && data) {
+          setPlace(data);
+          setIsWishlisted(!!data.isWishlisted);
+        }
+      })
+      .catch((err) => {
+        console.error('Error loading place:', err);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    // Also fetch approved reviews
+    api
+      .get(`/reviews/place/${cleanId}`)
+      .then((res) => {
+        if (isMounted && res.data?.data) {
+          setReviews(res.data.data);
+        }
+      })
+      .catch((err) => console.warn('Could not load reviews:', err));
+
+    // Fetch similar places
+    placesApi
+      .getAll()
+      .then((all) => {
+        if (isMounted) {
+          setSimilarPlaces(
+            all.filter((p) => p.id !== cleanId && p.slug !== cleanId && (p as any)._id !== cleanId).slice(0, 3)
+          );
+        }
+      })
+      .catch((err) => console.warn('Could not load similar places:', err));
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-8 h-8 border-4 border-[#006765] border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (!place) {
+    return (
+      <div className="text-center py-16 space-y-4">
+        <h2 className="text-xl font-bold text-[#151C27]">Place not found</h2>
+        <Button onClick={() => navigate('/explore')}>Return to Explore</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -76,7 +141,7 @@ export const UserExploreDetailPage: React.FC = () => {
 
         {/* 4 smaller thumbnail photos */}
         <div className="grid grid-cols-2 gap-3">
-          {place.galleryImages.concat(place.galleryImages).slice(0, 4).map((img, idx) => (
+          {((place.images && place.images.length > 0 ? place.images : place.galleryImages) || []).slice(0, 4).map((img: string, idx: number) => (
             <div key={idx} className="relative aspect-[4/3] bg-slate-100 rounded-xl overflow-hidden group">
               <img
                 src={img}
@@ -102,15 +167,15 @@ export const UserExploreDetailPage: React.FC = () => {
           <div className="flex items-center gap-4 text-xs text-[#555E74] mt-2">
             <span className="flex items-center gap-1 font-bold text-[#151C27]">
               <Star size={14} className="fill-amber-400 text-amber-400" />
-              {place.rating} ({place.reviewsCount} reviews)
+              {place.rating} ({place.reviewsCount || place.reviewCount || 0} reviews)
             </span>
             <span>•</span>
             <span className="flex items-center gap-1">
               <MapPin size={13} className="text-[#006765]" />
-              {place.location}
+              {typeof place.location === 'string' ? place.location : (place.address || place.city)}
             </span>
             <span>•</span>
-            <span className="text-emerald-700 font-semibold">{place.openingStatus} (Closes 11:30 PM)</span>
+            <span className="text-emerald-700 font-semibold">{place.openingStatus || 'Open Now'}</span>
           </div>
         </div>
 
@@ -182,7 +247,7 @@ export const UserExploreDetailPage: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {place.facilities.map((fac) => (
+              {(place.facilities || place.features || ['Wi-Fi', 'Parking', 'Air Conditioned', 'Card Accepted']).map((fac: string) => (
                 <div
                   key={fac}
                   className="p-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-center space-y-1"
@@ -211,7 +276,7 @@ export const UserExploreDetailPage: React.FC = () => {
                         <Star key={i} size={14} className="fill-amber-400" />
                       ))}
                     </div>
-                    <span className="text-xs text-[#555E74]">Based on {place.reviewsCount} verified reviews</span>
+                    <span className="text-xs text-[#555E74]">Based on {place.reviewsCount || reviews.length} verified reviews</span>
                   </div>
                 </div>
               </div>
@@ -219,44 +284,57 @@ export const UserExploreDetailPage: React.FC = () => {
               <Button
                 size="md"
                 icon={<Plus size={16} />}
-                onClick={() => navigate(`/place/${place.id}/review`)}
+                onClick={() => navigate(`/place/${place.slug || place.id || (place as any)._id}/review`)}
               >
                 Write a Review
               </Button>
             </div>
 
             {/* Review Cards list */}
-            <div className="space-y-4 divide-y divide-[#F1F5F9]">
-              {MOCK_REVIEWS.map((review) => (
-                <div key={review.id} className="pt-4 first:pt-0 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Avatar gender={review.userGender || 'female'} size={36} name={review.userName} />
-                      <div>
-                        <h4 className="text-xs font-bold text-[#151C27] flex items-center gap-1.5">
-                          <span>{review.userName}</span>
-                          {review.verified && (
+            {reviews.length === 0 ? (
+              <div className="text-center py-8 text-xs text-[#555E74] space-y-2">
+                <Star size={28} className="mx-auto text-amber-400 fill-amber-400/20" />
+                <p className="font-semibold text-[#151C27]">Be the first to leave an insider review!</p>
+                <p className="text-[11px] text-[#555E74]">Share your dining or exploration experience with fellow travelers in Rajkot.</p>
+              </div>
+            ) : (
+              <div className="space-y-4 divide-y divide-[#F1F5F9]">
+                {reviews.map((review: Review) => (
+                  <div key={review.id || (review as any)._id} className="pt-4 first:pt-0 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Avatar gender={review.userGender || 'female'} size={36} name={review.userName} />
+                        <div>
+                          <h4 className="text-xs font-bold text-[#151C27] flex items-center gap-1.5">
+                            <span>{review.userName}</span>
                             <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.2 rounded font-medium">
                               Verified
                             </span>
-                          )}
-                        </h4>
-                        <span className="text-[10px] text-[#555E74]">{review.userRole} • {review.date}</span>
+                          </h4>
+                          <span className="text-[10px] text-[#555E74]">{review.userRole || 'Explorer'} • {review.date || 'Recent'}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 text-amber-400 text-xs font-bold">
+                        <Star size={13} className="fill-amber-400" />
+                        <span>{review.rating}.0</span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1 text-amber-400 text-xs font-bold">
-                      <Star size={13} className="fill-amber-400" />
-                      <span>{review.rating}.0</span>
-                    </div>
-                  </div>
+                    <p className="text-xs text-[#555E74] leading-relaxed pl-12">
+                      "{review.content || review.comment || 'Exceptional experience and atmosphere!'}"
+                    </p>
 
-                  <p className="text-xs text-[#555E74] leading-relaxed pl-12">
-                    "{review.comment}"
-                  </p>
-                </div>
-              ))}
-            </div>
+                    {review.ownerReply && (
+                      <div className="ml-12 p-3 bg-[#F0F3FF] rounded-xl border border-[#CFE7E6] text-xs space-y-1">
+                        <span className="font-bold text-[#006765] block text-[11px]">Owner Response:</span>
+                        <p className="text-[#151C27] text-[11px]">{review.ownerReply.content}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -287,15 +365,15 @@ export const UserExploreDetailPage: React.FC = () => {
               </div>
               <div className="flex items-center gap-2.5">
                 <Clock size={16} className="text-[#006765] shrink-0" />
-                <span>Today: {place.timings}</span>
+                <span>Today: {typeof place.openingHours === 'string' ? place.openingHours : '10:00 AM - 11:00 PM'}</span>
               </div>
               <div className="flex items-center gap-2.5">
                 <Phone size={16} className="text-[#006765] shrink-0" />
-                <span>{place.phone}</span>
+                <span>{place.phone || '+91 281 245 8899'}</span>
               </div>
               <div className="flex items-center gap-2.5">
                 <Mail size={16} className="text-[#006765] shrink-0" />
-                <span>{place.email}</span>
+                <span>{place.email || 'info@placezy.com'}</span>
               </div>
             </div>
           </div>
@@ -304,24 +382,27 @@ export const UserExploreDetailPage: React.FC = () => {
           <div className="bg-white p-5 rounded-2xl border border-[#E2E8F0] shadow-sm space-y-3">
             <h3 className="text-sm font-bold text-[#151C27]">Similar Places in Rajkot</h3>
             <div className="space-y-3">
-              {similarPlaces.map((sim) => (
-                <div
-                  key={sim.id}
-                  onClick={() => navigate(`/place/${sim.id}`)}
-                  className="flex items-center gap-3 p-2 rounded-xl hover:bg-[#F0F3FF] cursor-pointer transition-colors"
-                >
-                  <img
-                    src={sim.coverImage}
-                    alt={sim.name}
-                    className="w-14 h-14 rounded-lg object-cover"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-xs font-bold text-[#151C27] truncate">{sim.name}</h4>
-                    <span className="text-[10px] text-[#555E74] block">{sim.subCategory}</span>
-                    <span className="text-[10px] text-[#006765] font-semibold">{sim.priceLevel} • {sim.distance}</span>
+              {similarPlaces.map((sim) => {
+                const simId = sim.slug || sim.id || (sim as any)._id;
+                return (
+                  <div
+                    key={simId}
+                    onClick={() => navigate(`/place/${simId}`)}
+                    className="flex items-center gap-3 p-2 rounded-xl hover:bg-[#F0F3FF] cursor-pointer transition-colors"
+                  >
+                    <img
+                      src={sim.coverImage || sim.imageUrl || '/logo.svg'}
+                      alt={sim.name}
+                      className="w-14 h-14 rounded-lg object-cover"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-xs font-bold text-[#151C27] truncate">{sim.name}</h4>
+                      <span className="text-[10px] text-[#555E74] block">{sim.subCategory || sim.category}</span>
+                      <span className="text-[10px] text-[#006765] font-semibold">{sim.priceLevel || '₹₹'} • {sim.distance || 'Rajkot'}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

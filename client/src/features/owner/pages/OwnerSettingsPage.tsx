@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
+import { useAuth } from '../../../context/AuthContext';
+import { ownerApi } from '../services/ownerService';
+import api from '../../../services/api';
 import {
   User,
   Building2,
@@ -9,54 +12,100 @@ import {
   Lock,
   Smartphone,
   Check,
-  AlertTriangle,
   Eye
 } from 'lucide-react';
+import type { Place } from '../../../types';
 
 export const OwnerSettingsPage: React.FC = () => {
+  const { user, updateUser } = useAuth();
+  const [listings, setListings] = useState<Place[]>([]);
+  const [name, setName] = useState(user?.name || '');
   const [emailAlerts, setEmailAlerts] = useState(true);
   const [smsAlerts, setSmsAlerts] = useState(true);
-  const [monthlyReports, setMonthlyReports] = useState(true);
+  const [newPassword, setNewPassword] = useState('');
   const [saved, setSaved] = useState(false);
+  const [passwordMsg, setPasswordMsg] = useState('');
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+  useEffect(() => {
+    if (user?.name) setName(user.name);
+    ownerApi.getListings().then((data) => {
+      setListings(data || []);
+    }).catch(console.error);
+  }, [user]);
+
+  const primaryListing = listings[0];
+
+  const handleSaveProfile = async () => {
+    try {
+      const res = await api.put('/auth/profile', { name });
+      if (res.data?.success) {
+        updateUser({ name });
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2500);
+      }
+    } catch (err) {
+      console.error('Failed to update owner profile:', err);
+      alert('Error updating profile');
+    }
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      setPasswordMsg('Password must be at least 6 characters.');
+      return;
+    }
+    try {
+      const res = await api.put('/auth/profile', { password: newPassword });
+      if (res.data?.success) {
+        setPasswordMsg('Password successfully updated in database!');
+        setNewPassword('');
+        setTimeout(() => setPasswordMsg(''), 3000);
+      }
+    } catch (err: any) {
+      setPasswordMsg(err.response?.data?.message || 'Error updating password');
+    }
   };
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
-      {/* Header matching Screen 07 Module 02 */}
+      {/* Header */}
       <div className="bg-white p-6 rounded-2xl border border-[#E2E8F0] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-2xl bg-[#006765] text-white flex items-center justify-center font-bold text-lg font-serif">
-            RD
+            {user?.name?.slice(0, 2).toUpperCase() || 'OW'}
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold font-serif text-[#151C27]">Raviraj Dhadhal</h1>
+              <h1 className="text-xl font-bold font-serif text-[#151C27]">{user?.name || 'Business Owner'}</h1>
               <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                 • Verified Business Owner
               </span>
             </div>
-            <p className="text-xs text-[#555E74] mt-0.5">raviraj.dhadhal@rajkotcafe.in • Rajkot, Gujarat</p>
+            <p className="text-xs text-[#555E74] mt-0.5">{user?.email} • {user?.city || 'Rajkot'}, Gujarat</p>
             <span className="text-[10px] text-[#006765] font-semibold mt-1 block">
-              Managing Rajkot Cafe & 3 other listings
+              Managing {listings.length} listed {listings.length === 1 ? 'property' : 'properties'} in database
             </span>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" icon={<Eye size={14} />}>
-            View Public Listing
-          </Button>
-          <Button size="sm" onClick={handleSave}>
+          {primaryListing && (
+            <Button
+              size="sm"
+              variant="outline"
+              icon={<Eye size={14} />}
+              onClick={() => window.open(`/place/${primaryListing.slug || primaryListing.id || (primaryListing as any)._id}`, '_blank')}
+            >
+              View Public Venue
+            </Button>
+          )}
+          <Button size="sm" onClick={handleSaveProfile}>
             {saved ? 'Saved!' : 'Save All Changes'}
           </Button>
         </div>
       </div>
 
-      {/* 2-Column Layout matching Screen 07 */}
+      {/* 2-Column Layout */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
         {/* Left Column (8 Cols): Personal & Business Info */}
         <div className="md:col-span-8 space-y-6">
@@ -67,13 +116,17 @@ export const OwnerSettingsPage: React.FC = () => {
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input label="Full Name" defaultValue="Raviraj Dhadhal" />
-              <Input label="Email Address" defaultValue="raviraj.dhadhal@rajkotcafe.in" disabled />
-              <Input label="Mobile Number" defaultValue="+91 98250 12345" />
-              <Input label="City & State" defaultValue="Rajkot, Gujarat" disabled />
+              <Input
+                label="Full Name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+              <Input label="Email Address" value={user?.email || ''} disabled />
+              <Input label="Role" value="Business Owner / Partner" disabled />
+              <Input label="Territory" value={`${user?.city || 'Rajkot'}, Gujarat`} disabled />
             </div>
 
-            <Button size="sm" variant="outline">
+            <Button size="sm" variant="outline" onClick={handleSaveProfile}>
               Save Personal Details
             </Button>
           </div>
@@ -84,28 +137,35 @@ export const OwnerSettingsPage: React.FC = () => {
               <h3 className="text-xs font-bold text-[#151C27] uppercase tracking-wider">
                 Primary Business Information
               </h3>
-              <span className="text-xs text-[#006765] font-semibold cursor-pointer">
-                Manage All 4 Listings →
+              <span className="text-xs text-[#006765] font-semibold">
+                {listings.length} venues managed
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input label="Registered Business Name" defaultValue="Rajkot Cafe" />
-              <Input label="Business Category" defaultValue="Café & Gourmet Bakery" />
-            </div>
+            {primaryListing ? (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Input label="Registered Business Name" value={primaryListing.name} disabled />
+                  <Input label="Business Category" value={primaryListing.category} disabled />
+                </div>
 
-            <Input
-              label="Primary Business Address"
-              defaultValue="Opp. Imperial Palace, Yagnik Road, Rajkot, Gujarat 360001"
-            />
+                <Input
+                  label="Primary Business Address"
+                  value={primaryListing.address || primaryListing.city}
+                  disabled
+                />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input label="Business Contact Number" defaultValue="+91 281 248 7890" />
-              <Input label="Merchant GSTIN" defaultValue="24AAACR1234F1Z5" />
-            </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Input label="Business Contact" value={primaryListing.phone || '+91 281 248 7890'} disabled />
+                  <Input label="Verification Status" value={primaryListing.isVerified ? 'Verified by Rajkot Admin' : 'Pending'} disabled />
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-[#555E74]">No active venue found in database.</p>
+            )}
           </div>
 
-          {/* Account Settings & Preferences */}
+          {/* Notification Preferences */}
           <div className="bg-white p-6 rounded-2xl border border-[#E2E8F0] shadow-sm space-y-4">
             <h3 className="text-xs font-bold text-[#151C27] uppercase tracking-wider border-b border-[#F1F5F9] pb-2">
               Notification Preferences
@@ -114,8 +174,8 @@ export const OwnerSettingsPage: React.FC = () => {
             <div className="space-y-3">
               <div className="flex items-center justify-between p-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC]">
                 <div>
-                  <h4 className="text-xs font-bold text-[#151C27]">Email alerts for new customer reviews</h4>
-                  <span className="text-[10px] text-[#555E74]">Receive instant email digest whenever a local explorer leaves a review</span>
+                  <h4 className="text-xs font-bold text-[#151C27]">Email alerts for customer reviews</h4>
+                  <span className="text-[10px] text-[#555E74]">Receive instant notification whenever an explorer reviews your venues</span>
                 </div>
                 <button
                   onClick={() => setEmailAlerts(!emailAlerts)}
@@ -133,8 +193,8 @@ export const OwnerSettingsPage: React.FC = () => {
 
               <div className="flex items-center justify-between p-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC]">
                 <div>
-                  <h4 className="text-xs font-bold text-[#151C27]">SMS alerts for urgent merchant notifications</h4>
-                  <span className="text-[10px] text-[#555E74]">Receive SMS messages to registered phone for verification requests</span>
+                  <h4 className="text-xs font-bold text-[#151C27]">SMS alerts for verification updates</h4>
+                  <span className="text-[10px] text-[#555E74]">Receive SMS alerts regarding listing approvals in Rajkot</span>
                 </div>
                 <button
                   onClick={() => setSmsAlerts(!smsAlerts)}
@@ -153,47 +213,31 @@ export const OwnerSettingsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Column (4 Cols): Security & Danger Zone */}
+        {/* Right Column (4 Cols): Security */}
         <div className="md:col-span-4 space-y-4">
-          {/* Change Password Card */}
           <div className="bg-white p-5 rounded-2xl border border-[#E2E8F0] shadow-sm space-y-3">
             <h4 className="text-xs font-bold text-[#151C27] uppercase tracking-wider">
-              Change Password
+              Change Account Password
             </h4>
-            <Input label="Current Password" type="password" placeholder="••••••••" />
-            <Input label="New Password" type="password" placeholder="Min. 8 characters" />
-            <Button size="sm" fullWidth>
-              Update Password
-            </Button>
-          </div>
-
-          {/* Security & Devices */}
-          <div className="bg-white p-5 rounded-2xl border border-[#E2E8F0] shadow-sm space-y-3">
-            <h4 className="text-xs font-bold text-[#151C27] uppercase tracking-wider">
-              Security & 2FA
-            </h4>
-            <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
-              <span className="text-xs font-semibold text-[#151C27]">Two-Step Verification</span>
-              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                ACTIVE
-              </span>
-            </div>
             <p className="text-[10px] text-[#555E74]">
-              SMS 2FA configured for phone ending in +91 98250 ••••45.
+              Update your account password in MongoDB.
             </p>
-          </div>
 
-          {/* Danger Zone */}
-          <div className="bg-white p-5 rounded-2xl border border-red-200 shadow-sm space-y-3">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-red-600 uppercase tracking-wider">
-              <AlertTriangle size={14} />
-              <span>Danger Zone</span>
-            </div>
-            <p className="text-[10px] text-[#555E74] leading-relaxed">
-              Deactivate or permanently remove your merchant listing profile from Placezy.
-            </p>
-            <Button variant="danger" size="sm" fullWidth>
-              Deactivate Account
+            <Input
+              type="password"
+              placeholder="New password (min 6 chars)"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+            />
+
+            {passwordMsg && (
+              <span className={`text-[10px] font-semibold block ${passwordMsg.includes('success') ? 'text-emerald-700' : 'text-red-600'}`}>
+                {passwordMsg}
+              </span>
+            )}
+
+            <Button size="sm" fullWidth onClick={handleUpdatePassword}>
+              Update Password
             </Button>
           </div>
         </div>

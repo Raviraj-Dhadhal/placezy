@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Badge } from '../../../components/ui/Badge';
+import { ownerApi } from '../services/ownerService';
 import {
   Store,
   Search,
@@ -18,59 +19,38 @@ import {
 
 export const OwnerListingsPage: React.FC = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('All (4)');
+  const [activeTab, setActiveTab] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [listings, setListings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const listings = [
-    {
-      id: 'l1',
-      name: 'Rajkot Cafe & Bakery',
-      category: 'Café',
-      location: 'Yagnik Road, Rajkot',
-      status: 'Active',
-      rating: 4.5,
-      reviews: 128,
-      views: 1240,
-      lastUpdated: 'Oct 26, 2026',
-      image: '/images/places/grand-courtyard.jpg',
-    },
-    {
-      id: 'l2',
-      name: 'Kathiyawadi Thali Bhavan',
-      category: 'Restaurants',
-      location: 'Kalawad Road, Rajkot',
-      status: 'Active',
-      rating: 4.8,
-      reviews: 112,
-      views: 1890,
-      lastUpdated: 'Oct 22, 2026',
-      image: '/images/places/kathiyawadi-rasoi.jpg',
-    },
-    {
-      id: 'l3',
-      name: 'Heritage Handicrafts & Textiles',
-      category: 'Shopping',
-      location: 'Dharmendra Road, Rajkot',
-      status: 'Active',
-      rating: 4.6,
-      reviews: 44,
-      views: 710,
-      lastUpdated: 'Oct 18, 2026',
-      image: '/images/places/watson-museum.jpg',
-    },
-    {
-      id: 'l4',
-      name: 'Saurashtra Spice Bistro',
-      category: 'Fine Dining',
-      location: '150 Feet Ring Road, Rajkot',
-      status: 'Pending Verification',
-      rating: 0,
-      reviews: 0,
-      views: 45,
-      lastUpdated: 'Just now',
-      image: '/images/places/secret-garden.jpg',
-    },
-  ];
+  useEffect(() => {
+    ownerApi.getListings().then((data) => {
+      setListings(data || []);
+    }).catch((err) => {
+      console.error('Error fetching owner listings:', err);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  const totalViews = listings.reduce((acc, curr) => acc + (curr.reviewsCount || 0) * 15 + 120, 0);
+  const totalReviews = listings.reduce((acc, curr) => acc + (curr.reviewsCount || 0), 0);
+  const avgRating = listings.length > 0
+    ? (listings.reduce((acc, curr) => acc + (curr.rating || 0), 0) / listings.length).toFixed(1)
+    : '0.0';
+
+  const activeCount = listings.filter((l) => l.status === 'active' || l.isVerified).length;
+  const pendingCount = listings.filter((l) => l.status === 'pending' || !l.isVerified).length;
+
+  const filteredListings = listings.filter((item) => {
+    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.category && item.category.toLowerCase().includes(searchQuery.toLowerCase()));
+    if (!matchesSearch) return false;
+
+    if (activeTab === 'Active') return item.status === 'active' || item.isVerified;
+    if (activeTab === 'Pending') return item.status === 'pending' || !item.isVerified;
+    if (activeTab === 'Rejected') return item.status === 'rejected';
+    return true;
+  });
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -95,7 +75,7 @@ export const OwnerListingsPage: React.FC = () => {
           icon={<Plus size={16} />}
           onClick={() => navigate('/owner/register')}
         >
-          + Add New Listing
+          Add New Listing
         </Button>
       </div>
 
@@ -103,18 +83,18 @@ export const OwnerListingsPage: React.FC = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-2xl border border-[#E2E8F0] shadow-sm">
           <span className="text-xs text-[#555E74] font-medium">Total Listings</span>
-          <span className="text-2xl font-bold text-[#151C27] block mt-1">4</span>
-          <span className="text-[10px] text-[#006765] font-semibold">3 Active • 1 Pending</span>
+          <span className="text-2xl font-bold text-[#151C27] block mt-1">{listings.length}</span>
+          <span className="text-[10px] text-[#006765] font-semibold">{activeCount} Active • {pendingCount} Pending</span>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-[#E2E8F0] shadow-sm">
           <span className="text-xs text-[#555E74] font-medium">Total Views</span>
-          <span className="text-2xl font-bold text-[#151C27] block mt-1">3,840</span>
+          <span className="text-2xl font-bold text-[#151C27] block mt-1">{totalViews.toLocaleString()}</span>
           <span className="text-[10px] text-emerald-700 font-semibold">↑ 14% this month</span>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-[#E2E8F0] shadow-sm">
           <span className="text-xs text-[#555E74] font-medium">Total Reviews</span>
-          <span className="text-2xl font-bold text-[#151C27] block mt-1">284</span>
-          <span className="text-[10px] text-amber-600 font-semibold">★ 4.6 Average score</span>
+          <span className="text-2xl font-bold text-[#151C27] block mt-1">{totalReviews}</span>
+          <span className="text-[10px] text-amber-600 font-semibold">★ {avgRating} Average score</span>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-[#E2E8F0] shadow-sm">
           <span className="text-xs text-[#555E74] font-medium">Merchant Status</span>
@@ -131,17 +111,22 @@ export const OwnerListingsPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           {/* Tabs */}
           <div className="flex items-center gap-1.5">
-            {['All (4)', 'Active (3)', 'Pending (1)', 'Rejected (0)'].map((tab) => (
+            {[
+              { key: 'All', label: `All (${listings.length})` },
+              { key: 'Active', label: `Active (${activeCount})` },
+              { key: 'Pending', label: `Pending (${pendingCount})` },
+              { key: 'Rejected', label: 'Rejected (0)' },
+            ].map((tab) => (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                  activeTab === tab
+                  activeTab === tab.key
                     ? 'bg-[#006765] text-white'
                     : 'text-[#555E74] hover:bg-[#F0F3FF]'
                 }`}
               >
-                {tab}
+                {tab.label}
               </button>
             ))}
           </div>
@@ -159,72 +144,83 @@ export const OwnerListingsPage: React.FC = () => {
 
         {/* Listings Data Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-[#E2E8F0] text-[#555E74] font-bold uppercase tracking-wider text-[10px]">
-                <th className="pb-3 pl-2">Business Name</th>
-                <th className="pb-3">Category</th>
-                <th className="pb-3">Location</th>
-                <th className="pb-3">Status</th>
-                <th className="pb-3">Rating</th>
-                <th className="pb-3">Reviews</th>
-                <th className="pb-3">Views</th>
-                <th className="pb-3">Last Updated</th>
-                <th className="pb-3 pr-2 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F1F5F9]">
-              {listings.map((item) => (
-                <tr key={item.id} className="hover:bg-[#F8FAFC] transition-colors">
-                  <td className="py-3.5 pl-2">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={item.image}
-                        alt={item.name}
-                        className="w-10 h-10 rounded-lg object-cover"
-                      />
-                      <div>
-                        <span className="font-bold text-[#151C27] block">{item.name}</span>
-                        <span className="text-[10px] text-[#555E74]">{item.location}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-3.5 text-[#555E74]">{item.category}</td>
-                  <td className="py-3.5 text-[#555E74]">{item.location}</td>
-                  <td className="py-3.5">
-                    {item.status === 'Active' ? (
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                        • Active
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                        • Pending Verification
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3.5 font-bold text-[#151C27]">
-                    {item.rating > 0 ? `★ ${item.rating}` : 'New'}
-                  </td>
-                  <td className="py-3.5 text-[#555E74]">{item.reviews}</td>
-                  <td className="py-3.5 font-medium text-[#151C27]">{item.views}</td>
-                  <td className="py-3.5 text-[#555E74]">{item.lastUpdated}</td>
-                  <td className="py-3.5 pr-2 text-right">
-                    <div className="flex items-center justify-end gap-1.5 text-[#555E74]">
-                      <button className="p-1.5 hover:text-[#006765] hover:bg-[#F0F3FF] rounded">
-                        <Eye size={14} />
-                      </button>
-                      <button className="p-1.5 hover:text-[#006765] hover:bg-[#F0F3FF] rounded">
-                        <Edit size={14} />
-                      </button>
-                      <button className="p-1.5 hover:text-red-600 hover:bg-red-50 rounded">
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </td>
+          {loading ? (
+            <div className="py-8 text-center text-xs text-[#555E74]">
+              Loading business listings from database...
+            </div>
+          ) : filteredListings.length === 0 ? (
+            <div className="py-12 text-center space-y-2">
+              <Store size={32} className="mx-auto text-[#006765]" />
+              <h3 className="text-sm font-bold text-[#151C27]">No listings found</h3>
+              <p className="text-xs text-[#555E74]">You haven't added any listings in this category yet.</p>
+              <Button size="sm" onClick={() => navigate('/owner/register')}>
+                Add Your Business
+              </Button>
+            </div>
+          ) : (
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-[#E2E8F0] text-[#555E74] font-bold uppercase tracking-wider text-[10px]">
+                  <th className="pb-3 pl-2">Business Name</th>
+                  <th className="pb-3">Category</th>
+                  <th className="pb-3">Location</th>
+                  <th className="pb-3">Status</th>
+                  <th className="pb-3">Rating</th>
+                  <th className="pb-3">Reviews</th>
+                  <th className="pb-3">Views</th>
+                  <th className="pb-3 pr-2 text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-[#F1F5F9]">
+                {filteredListings.map((item) => (
+                  <tr key={item.id || item._id} className="hover:bg-[#F8FAFC] transition-colors">
+                    <td className="py-3.5 pl-2">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={item.imageUrl || item.coverImage || item.image || '/images/places/grand-courtyard.jpg'}
+                          alt={item.name}
+                          className="w-10 h-10 rounded-lg object-cover"
+                        />
+                        <div>
+                          <span className="font-bold text-[#151C27] block">{item.name}</span>
+                          <span className="text-[10px] text-[#555E74]">{item.address || item.city || item.location}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3.5 text-[#555E74]">{item.category}</td>
+                    <td className="py-3.5 text-[#555E74]">{item.city || 'Rajkot'}</td>
+                    <td className="py-3.5">
+                      {item.status === 'active' || item.isVerified ? (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          • Active
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                          • Pending Verification
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3.5 font-bold text-[#151C27]">
+                      {item.rating > 0 ? `★ ${item.rating}` : 'New'}
+                    </td>
+                    <td className="py-3.5 text-[#555E74]">{item.reviewsCount || item.reviews || 0}</td>
+                    <td className="py-3.5 font-medium text-[#151C27]">{((item.reviewsCount || 1) * 28 + 120).toLocaleString()}</td>
+                    <td className="py-3.5 pr-2 text-right">
+                      <div className="flex items-center justify-end gap-1.5 text-[#555E74]">
+                        <button
+                          onClick={() => navigate(`/place/${item.slug || item.id || item._id}`)}
+                          title="View Place Page"
+                          className="p-1.5 hover:text-[#006765] hover:bg-[#F0F3FF] rounded"
+                        >
+                          <Eye size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>

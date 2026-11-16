@@ -1,23 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MOCK_PLACES } from '../../../utils/mockData';
+import { placesApi } from '../services/placesService';
 import { Button } from '../../../components/ui/Button';
 import { ArrowLeft, Check, RotateCcw, ArrowRight } from 'lucide-react';
 
 export const UserExploreFilterPage: React.FC = () => {
   const navigate = useNavigate();
+  const [places, setPlaces] = useState<any[]>([]);
 
   // Filter state
   const [locationType, setLocationType] = useState<'rajkot' | 'all'>('rajkot');
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([
-    'Cafés',
-    'Attractions',
-  ]);
-  const [selectedPrice, setSelectedPrice] = useState('₹₹');
-  const [selectedDistance, setSelectedDistance] = useState('15 km');
-  const [minRating, setMinRating] = useState('4.5+');
-  const [openNow, setOpenNow] = useState(true);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedPrice, setSelectedPrice] = useState('All');
+  const [selectedDistance, setSelectedDistance] = useState('100+ km (All Gujarat)');
+  const [minRating, setMinRating] = useState('All');
+  const [openNow, setOpenNow] = useState(false);
   const [openToday, setOpenToday] = useState(false);
+
+  useEffect(() => {
+    placesApi.getAll().then((data) => setPlaces(data || []));
+  }, []);
 
   const categories = [
     'Restaurants',
@@ -30,13 +32,14 @@ export const UserExploreFilterPage: React.FC = () => {
   ];
 
   const priceTiers = [
+    { label: 'All', title: 'Any Price' },
     { label: '₹', title: 'Budget' },
     { label: '₹₹', title: 'Moderate' },
     { label: '₹₹₹', title: 'Premium' },
   ];
 
   const distanceSteps = ['5 km', '15 km', '25 km', '50 km', '100+ km (All Gujarat)'];
-  const ratingSteps = ['4.5+ ★', '4.0+ ★', '3.5+ ★', '3.0+ ★'];
+  const ratingSteps = ['All', '4.5+ ★', '4.0+ ★', '3.5+ ★', '3.0+ ★'];
 
   const toggleCategory = (cat: string) => {
     if (selectedCategories.includes(cat)) {
@@ -48,15 +51,74 @@ export const UserExploreFilterPage: React.FC = () => {
 
   const handleReset = () => {
     setLocationType('rajkot');
-    setSelectedCategories(['Cafés']);
-    setSelectedPrice('₹₹');
-    setSelectedDistance('15 km');
-    setMinRating('4.5+');
-    setOpenNow(true);
+    setSelectedCategories([]);
+    setSelectedPrice('All');
+    setSelectedDistance('100+ km (All Gujarat)');
+    setMinRating('All');
+    setOpenNow(false);
+    setOpenToday(false);
   };
 
-  // Preview places matching
-  const matchingPlaces = MOCK_PLACES.slice(0, 3);
+  const matchingPlaces = (places || []).filter((p: any) => {
+    if (!p) return false;
+
+    // 1. Categories
+    if (selectedCategories.length > 0) {
+      const matchCat = selectedCategories.some((cat) => {
+        const catLower = cat.toLowerCase();
+        const pCatLower = (p.category || '').toLowerCase();
+        if (catLower.includes('park') && pCatLower.includes('park')) return true;
+        if (catLower.includes('relig') && pCatLower.includes('relig')) return true;
+        if (catLower.includes('cult') && pCatLower.includes('cult')) return true;
+        return pCatLower.includes(catLower) || catLower.includes(pCatLower);
+      });
+      if (!matchCat) return false;
+    }
+
+    // 2. Price
+    if (selectedPrice && selectedPrice !== 'All') {
+      if (p.priceLevel !== selectedPrice && p.priceRange !== selectedPrice) {
+        return false;
+      }
+    }
+
+    // 3. Distance
+    if (selectedDistance === '5 km' && (p.distanceKm || 0) > 5) return false;
+    if (selectedDistance === '15 km' && (p.distanceKm || 0) > 15) return false;
+    if (selectedDistance === '25 km' && (p.distanceKm || 0) > 25) return false;
+    if (selectedDistance === '50 km' && (p.distanceKm || 0) > 50) return false;
+
+    // 4. Rating
+    if (minRating && minRating !== 'All') {
+      const minR = parseFloat(minRating);
+      if (!isNaN(minR) && (p.rating || 0) < minR) return false;
+    }
+
+    // 5. Open Now
+    if (openNow && p.openingStatus === 'Closed') return false;
+
+    return true;
+  });
+
+  const handleApply = () => {
+    const params = new URLSearchParams();
+    if (selectedCategories.length === 1) {
+      params.set('category', selectedCategories[0]);
+    }
+    if (selectedPrice) {
+      params.set('price', selectedPrice);
+    }
+    if (selectedDistance) {
+      if (selectedDistance === '5 km') params.set('distance', 'Within 5km');
+      else if (selectedDistance === '15 km') params.set('distance', 'Within 15km');
+      else if (selectedDistance === '25 km') params.set('distance', 'Within 25km');
+    }
+    const minR = parseFloat(minRating);
+    if (!isNaN(minR)) {
+      params.set('rating', String(minR));
+    }
+    navigate(`/explore?${params.toString()}`);
+  };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -296,9 +358,9 @@ export const UserExploreFilterPage: React.FC = () => {
               size="md"
               icon={<ArrowRight size={16} />}
               iconPosition="right"
-              onClick={() => navigate('/explore')}
+              onClick={handleApply}
             >
-              Apply Filters (18 Places Matching)
+              Apply Filters ({matchingPlaces.length} Places Matching)
             </Button>
           </div>
         </div>
@@ -311,35 +373,40 @@ export const UserExploreFilterPage: React.FC = () => {
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                 <h3 className="text-sm font-bold text-[#151C27]">Live Matching Preview</h3>
               </div>
-              <span className="text-xs font-bold text-[#006765]">18 Places</span>
+              <span className="text-xs font-bold text-[#006765]">{matchingPlaces.length} Places</span>
             </div>
             <p className="text-[11px] text-[#555E74]">
-              18 curated places match in Rajkot & nearby
+              {matchingPlaces.length} curated places match in Rajkot & nearby
             </p>
 
             <div className="space-y-3">
-              {matchingPlaces.map((p) => (
-                <div
-                  key={p.id}
-                  onClick={() => navigate(`/place/${p.id}`)}
-                  className="flex items-center gap-3 p-2.5 rounded-xl border border-[#E2E8F0] hover:bg-[#F0F3FF] cursor-pointer transition-colors"
-                >
-                  <img
-                    src={p.coverImage}
-                    alt={p.name}
-                    className="w-14 h-14 rounded-lg object-cover"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <span className="text-[9px] font-bold text-[#006765] uppercase block">
-                      {p.subCategory}
-                    </span>
-                    <h4 className="text-xs font-bold text-[#151C27] truncate">{p.name}</h4>
-                    <span className="text-[10px] text-[#555E74] block">{p.location}</span>
-                    <span className="text-[10px] text-emerald-700 font-semibold">{p.openingStatus}</span>
+              {matchingPlaces.map((p) => {
+                const placeId = p.slug || p.id || p._id;
+                const placeImg = p.coverImage || p.imageUrl || (p.images && p.images[0]) || '/images/places/watson-museum.jpg';
+                const placeLoc = typeof p.location === 'string' ? p.location : (p.address || p.city || 'Rajkot, Gujarat');
+                return (
+                  <div
+                    key={placeId}
+                    onClick={() => navigate(`/place/${placeId}`)}
+                    className="flex items-center gap-3 p-2.5 rounded-xl border border-[#E2E8F0] hover:bg-[#F0F3FF] cursor-pointer transition-colors"
+                  >
+                    <img
+                      src={placeImg}
+                      alt={p.name}
+                      className="w-14 h-14 rounded-lg object-cover"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[9px] font-bold text-[#006765] uppercase block">
+                        {p.subCategory || p.category}
+                      </span>
+                      <h4 className="text-xs font-bold text-[#151C27] truncate">{p.name}</h4>
+                      <span className="text-[10px] text-[#555E74] block">{placeLoc}</span>
+                      <span className="text-[10px] text-emerald-700 font-semibold">{p.openingStatus || 'Open Now'}</span>
+                    </div>
+                    <span className="text-xs font-bold text-[#151C27]">★ {p.rating}</span>
                   </div>
-                  <span className="text-xs font-bold text-[#151C27]">★ {p.rating}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="p-3 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0] text-center">

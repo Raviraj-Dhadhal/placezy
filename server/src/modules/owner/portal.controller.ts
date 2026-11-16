@@ -30,6 +30,55 @@ export class OwnerController {
     }
   }
 
+  static async addPhotos(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        sendResponse(res, 401, false, 'Unauthorized');
+        return;
+      }
+      const placeId = req.params.placeId as string;
+      const { imageUrls } = req.body;
+      if (!imageUrls || !Array.isArray(imageUrls) || imageUrls.length === 0) {
+        sendResponse(res, 400, false, 'No image URLs provided');
+        return;
+      }
+      const updated = await OwnerService.addPhotosToListing(req.user.userId, placeId, imageUrls);
+      sendResponse(res, 200, true, 'Photos added to venue successfully', updated);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async setCoverPhoto(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        sendResponse(res, 401, false, 'Unauthorized');
+        return;
+      }
+      const placeId = req.params.placeId as string;
+      const { imageUrl } = req.body;
+      const updated = await OwnerService.setCoverPhoto(req.user.userId, placeId, imageUrl);
+      sendResponse(res, 200, true, 'Cover photo updated successfully', updated);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async deletePhoto(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        sendResponse(res, 401, false, 'Unauthorized');
+        return;
+      }
+      const placeId = req.params.placeId as string;
+      const { imageUrl } = req.body;
+      const updated = await OwnerService.deletePhotoFromListing(req.user.userId, placeId, imageUrl);
+      sendResponse(res, 200, true, 'Photo removed from listing', updated);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async getReviews(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       if (!req.user) {
@@ -63,7 +112,8 @@ export class OwnerController {
         sendResponse(res, 401, false, 'Unauthorized');
         return;
       }
-      const analytics = await OwnerService.getAnalytics(req.user.userId);
+      const timeRange = (req.query.timeRange as string) || 'Last 30 Days';
+      const analytics = await OwnerService.getAnalytics(req.user.userId, timeRange);
       sendResponse(res, 200, true, 'Owner analytics calculated', analytics);
     } catch (error) {
       next(error);
@@ -90,6 +140,21 @@ export class AdminController {
     }
   }
 
+  static async updateUserStatus(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const status = req.body.status;
+      if (!['active', 'suspended'].includes(status)) {
+        sendResponse(res, 400, false, 'Invalid status. Must be active or suspended.');
+        return;
+      }
+      const user = await AdminService.updateUserStatus(userId, status);
+      sendResponse(res, 200, true, `User ${status === 'suspended' ? 'suspended' : 'activated'} successfully`, user);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async getBusinesses(_req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const businesses = await AdminService.getAllBusinesses();
@@ -104,6 +169,75 @@ export class AdminController {
       const placeId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
       const place = await AdminService.verifyBusiness(placeId, req.body.isVerified);
       sendResponse(res, 200, true, 'Business verification updated', place);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // ─── ADMIN REVIEW MODERATION CONTROLLER ────────────────────────────────
+
+  static async getAllReviews(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const status = req.query.status as string;
+      const reviews = await AdminService.getAllReviews(status);
+      sendResponse(res, 200, true, 'Reviews retrieved for moderation', reviews);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async approveReview(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        sendResponse(res, 401, false, 'Unauthorized');
+        return;
+      }
+      const reviewId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const review = await AdminService.approveReview(reviewId, req.user.userId);
+      sendResponse(res, 200, true, 'Review approved and published successfully', review);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async rejectReview(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        sendResponse(res, 401, false, 'Unauthorized');
+        return;
+      }
+      const reviewId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const { reason } = req.body;
+      const review = await AdminService.rejectReview(reviewId, req.user.userId, reason || 'Content does not meet guidelines');
+      sendResponse(res, 200, true, 'Review rejected', review);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async deleteReview(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const reviewId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const result = await AdminService.deleteReview(reviewId);
+      sendResponse(res, 200, true, 'Review deleted', result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getSettings(_req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const settings = await AdminService.getSystemSettings();
+      sendResponse(res, 200, true, 'System settings retrieved', settings);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async updateSettings(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const settings = await AdminService.updateSystemSettings(req.body);
+      sendResponse(res, 200, true, 'System settings updated successfully in database', settings);
     } catch (error) {
       next(error);
     }

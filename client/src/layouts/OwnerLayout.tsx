@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { Logo } from '../components/shared/Logo';
+import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard,
   Store,
@@ -16,6 +17,7 @@ import {
 
 export const OwnerLayout: React.FC = () => {
   const navigate = useNavigate();
+  const { user, logout, unreadNotificationsCount } = useAuth();
 
   const navItems = [
     { label: 'Dashboard', path: '/owner/dashboard', icon: <LayoutDashboard size={18} /> },
@@ -48,19 +50,23 @@ export const OwnerLayout: React.FC = () => {
             className="p-2 text-[#555E74] hover:text-[#151C27] hover:bg-[#F0F3FF] rounded-full relative"
           >
             <Bell size={18} />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#006765]"></span>
+            {unreadNotificationsCount > 0 && (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#006765]"></span>
+            )}
           </button>
 
-          {/* Business switcher */}
-          <div className="flex items-center gap-2 pl-2 border-l border-[#E2E8F0] cursor-pointer">
-            <div className="w-8 h-8 rounded-lg bg-[#006765] text-white flex items-center justify-center font-bold text-xs">
-              RD
+          {/* Business profile info */}
+          <div
+            onClick={() => navigate('/owner/settings')}
+            className="flex items-center gap-2 pl-2 border-l border-[#E2E8F0] cursor-pointer"
+          >
+            <div className="w-8 h-8 rounded-lg bg-[#006765] text-white flex items-center justify-center font-bold text-xs font-serif">
+              {user?.name?.slice(0, 2).toUpperCase() || 'OW'}
             </div>
             <div className="flex flex-col text-left">
-              <span className="text-xs font-semibold text-[#151C27]">Raviraj Dhadhal</span>
-              <span className="text-[10px] text-[#555E74]">The Grand Heritage Cafe</span>
+              <span className="text-xs font-semibold text-[#151C27]">{user?.name || 'Business Owner'}</span>
+              <span className="text-[10px] text-[#555E74]">{user?.city || 'Rajkot'} Merchant</span>
             </div>
-            <ChevronDown size={14} className="text-[#555E74]" />
           </div>
         </div>
       </header>
@@ -96,7 +102,10 @@ export const OwnerLayout: React.FC = () => {
           </nav>
 
           <button
-            onClick={() => navigate('/login')}
+            onClick={() => {
+              logout();
+              navigate('/login');
+            }}
             className="flex items-center gap-3 px-3.5 py-2.5 text-xs text-[#555E74] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border-t border-[#E2E8F0] pt-4"
           >
             <LogOut size={16} />

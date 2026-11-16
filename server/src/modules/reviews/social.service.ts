@@ -5,31 +5,156 @@ import { NotificationModel } from '../notifications/notification.model';
 import mongoose from 'mongoose';
 
 export class SocialService {
-  // Reviews
-  static async createReview(userId: string, userName: string, userAvatar: string | undefined, data: { placeId: string; rating: number; content: string; tags?: string[] }): Promise<IReview> {
+  // ─── REVIEWS WORKFLOW ───────────────────────────────────────────────────
+
+  /**
+   * User submits a review:
+   * Rule: It enters status: 'pending'. It does NOT update place rating until Admin approves it.
+   */
+  static async createReview(
+    userId: string,
+    userName: string,
+    userAvatar: string | undefined,
+    data: {
+      placeId: string;
+      rating: number;
+      foodRating?: number;
+      ambienceRating?: number;
+      serviceRating?: number;
+      title?: string;
+      content: string;
+      images?: string[];
+      tags?: string[];
+    }
+  ): Promise<IReview> {
     const review = await ReviewModel.create({
       userId,
       placeId: data.placeId,
       userName,
       userAvatar,
       rating: data.rating,
+      foodRating: data.foodRating,
+      ambienceRating: data.ambienceRating,
+      serviceRating: data.serviceRating,
+      title: data.title,
       content: data.content,
+      images: data.images || [],
       tags: data.tags || [],
+      status: 'pending', // Awaits admin moderation
     });
 
-    // Recalculate average rating for place
-    const reviews = await ReviewModel.find({ placeId: data.placeId });
-    const avg = reviews.reduce((acc, curr) => acc + curr.rating, 0) / reviews.length;
-    await PlaceModel.findByIdAndUpdate(data.placeId, {
-      rating: Math.round(avg * 10) / 10,
-      reviewsCount: reviews.length,
+    // Notify admins about new pending review
+    const place = await PlaceModel.findById(data.placeId);
+    await NotificationModel.create({
+      userId: new mongoose.Types.ObjectId(userId),
+      title: 'Review Submitted',
+      message: `Your review for "${place?.name || 'the venue'}" is submitted and pending moderation.`,
+      type: 'review',
     });
 
     return review;
   }
 
-  static async getPlaceReviews(placeId: string): Promise<IReview[]> {
-    return ReviewModel.find({ placeId }).sort({ createdAt: -1 });
+  /**
+   * Public venue detail only retrieves APPROVED reviews
+   */
+  static async getApprovedPlaceReviews(placeInput: string): Promise<IReview[]> {
+    let targetPlaceId: any = placeInput;
+    if (!mongoose.Types.ObjectId.isValid(placeInput)) {
+      const place = await PlaceModel.findOne({ slug: placeInput });
+      if (place) targetPlaceId = place._id;
+    }
+    return ReviewModel.find({ placeId: targetPlaceId, status: 'approved' }).sort({ createdAt: -1 });
+  }
+
+  /**
+   * User checks their own reviews (including pending / rejected status)
+   */
+  static async getMyReviews(userId: string): Promise<IReview[]> {
+    return ReviewModel.find({ userId }).populate('placeId').sort({ createdAt: -1 });
+  }
+
+  /**
+   * Admin approves a review:
+   * Recalculates the place's average rating and total reviews count dynamically.
+   */
+  static async approveReview(reviewId: string, adminId: string): Promise<IReview | null> {
+    const review = await ReviewModel.findByIdAndUpdate(
+      reviewId,
+      {
+        $set: {
+          status: 'approved',
+          moderatedBy: adminId,
+          moderatedAt: new Date(),
+        },
+      },
+      { new: true }
+    );
+
+    if (review) {
+      await this.recalculatePlaceRating(review.placeId.toString());
+
+      // Notify the user who wrote the review
+      await NotificationModel.create({
+        userId: review.userId,
+        title: 'Review Approved! 🎉',
+        message: `Your review has been approved and is now live on Placezy.`,
+        type: 'review',
+      });
+    }
+
+    return review;
+  }
+
+  /**
+   * Admin rejects a review with an explicit reason
+   */
+  static async rejectReview(reviewId: string, adminId: string, rejectionReason: string): Promise<IReview | null> {
+    const review = await ReviewModel.findByIdAndUpdate(
+      reviewId,
+      {
+        $set: {
+          status: 'rejected',
+          rejectionReason,
+          moderatedBy: adminId,
+          moderatedAt: new Date(),
+        },
+      },
+      { new: true }
+    );
+
+    if (review) {
+      await this.recalculatePlaceRating(review.placeId.toString());
+
+      // Notify user
+      await NotificationModel.create({
+        userId: review.userId,
+        title: 'Review Update',
+        message: `Your review could not be published: ${rejectionReason}`,
+        type: 'review',
+      });
+    }
+
+    return review;
+  }
+
+  /**
+   * Recalculates average rating and review count from all APPROVED reviews only
+   */
+  static async recalculatePlaceRating(placeId: string): Promise<void> {
+    const approvedReviews = await ReviewModel.find({ placeId, status: 'approved' });
+    const count = approvedReviews.length;
+    let avg = 0;
+
+    if (count > 0) {
+      const sum = approvedReviews.reduce((acc, curr) => acc + curr.rating, 0);
+      avg = Math.round((sum / count) * 10) / 10;
+    }
+
+    await PlaceModel.findByIdAndUpdate(placeId, {
+      rating: avg,
+      reviewsCount: count,
+    });
   }
 
   static async toggleLikeReview(reviewId: string, userId: string): Promise<IReview | null> {
@@ -50,28 +175,59 @@ export class SocialService {
     return review;
   }
 
-  // Wishlist
-  static async toggleWishlist(userId: string, placeId: string): Promise<{ saved: boolean }> {
-    const existing = await WishlistModel.findOne({ userId, placeId });
+  // ─── WISHLIST WORKFLOW ───────────────────────────────────────────────────
+
+  static async toggleWishlist(userId: string, placeInput: string): Promise<{ saved: boolean }> {
+    // Resolve placeId: could be MongoDB _id or slug
+    let targetPlaceId: mongoose.Types.ObjectId | null = null;
+    if (mongoose.Types.ObjectId.isValid(placeInput)) {
+      targetPlaceId = new mongoose.Types.ObjectId(placeInput);
+    } else {
+      const place = await PlaceModel.findOne({ slug: placeInput });
+      if (place) {
+        targetPlaceId = place._id as mongoose.Types.ObjectId;
+      }
+    }
+
+    if (!targetPlaceId) {
+      throw new Error('Place not found to wishlist');
+    }
+
+    const existing = await WishlistModel.findOne({ userId, placeId: targetPlaceId });
     if (existing) {
       await WishlistModel.deleteOne({ _id: existing._id });
       return { saved: false };
     } else {
-      await WishlistModel.create({ userId, placeId });
+      await WishlistModel.create({ userId, placeId: targetPlaceId });
       return { saved: true };
     }
   }
 
   static async getUserWishlist(userId: string) {
-    return WishlistModel.find({ userId }).populate('placeId');
+    const list = await WishlistModel.find({ userId }).populate('placeId').sort({ createdAt: -1 });
+    return list
+      .filter((item) => item.placeId != null)
+      .map((item) => {
+        const p: any = (item.placeId as any).toObject ? (item.placeId as any).toObject() : item.placeId;
+        return {
+          ...p,
+          id: p._id?.toString() || p.slug,
+          isWishlisted: true,
+        };
+      });
   }
 
-  // Notifications
+  // ─── NOTIFICATIONS ───────────────────────────────────────────────────────
+
   static async getUserNotifications(userId: string) {
     return NotificationModel.find({ userId }).sort({ createdAt: -1 });
   }
 
   static async markNotificationRead(id: string, userId: string) {
     return NotificationModel.findOneAndUpdate({ _id: id, userId }, { read: true }, { new: true });
+  }
+
+  static async markAllNotificationsRead(userId: string) {
+    return NotificationModel.updateMany({ userId, read: false }, { $set: { read: true } });
   }
 }
