@@ -27,9 +27,27 @@ export class SocialService {
       tags?: string[];
     }
   ): Promise<IReview> {
+    let place = null;
+    if (mongoose.Types.ObjectId.isValid(data.placeId)) {
+      place = await PlaceModel.findById(data.placeId);
+    }
+    if (!place) {
+      place = await PlaceModel.findOne({
+        $or: [
+          { slug: data.placeId },
+          { slug: data.placeId.toLowerCase() },
+          { name: new RegExp(`^${data.placeId}$`, 'i') },
+        ],
+      });
+    }
+
+    if (!place) {
+      throw new Error('Place not found');
+    }
+
     const review = await ReviewModel.create({
       userId,
-      placeId: data.placeId,
+      placeId: place._id,
       userName,
       userAvatar,
       rating: data.rating,
@@ -43,12 +61,11 @@ export class SocialService {
       status: 'pending', // Awaits admin moderation
     });
 
-    // Notify admins about new pending review
-    const place = await PlaceModel.findById(data.placeId);
+    // Notify admins/user about new pending review
     await NotificationModel.create({
       userId: new mongoose.Types.ObjectId(userId),
       title: 'Review Submitted',
-      message: `Your review for "${place?.name || 'the venue'}" is submitted and pending moderation.`,
+      message: `Your review for "${place.name}" is submitted and pending moderation.`,
       type: 'review',
     });
 
@@ -61,7 +78,13 @@ export class SocialService {
   static async getApprovedPlaceReviews(placeInput: string): Promise<IReview[]> {
     let targetPlaceId: any = placeInput;
     if (!mongoose.Types.ObjectId.isValid(placeInput)) {
-      const place = await PlaceModel.findOne({ slug: placeInput });
+      const place = await PlaceModel.findOne({
+        $or: [
+          { slug: placeInput },
+          { slug: placeInput.toLowerCase() },
+          { name: new RegExp(`^${placeInput}$`, 'i') }
+        ]
+      });
       if (place) targetPlaceId = place._id;
     }
     return ReviewModel.find({ placeId: targetPlaceId, status: 'approved' }).sort({ createdAt: -1 });

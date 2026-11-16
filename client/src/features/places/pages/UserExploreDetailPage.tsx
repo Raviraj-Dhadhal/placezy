@@ -13,7 +13,6 @@ import {
   Clock,
   Phone,
   Mail,
-  Share2,
   Bookmark,
   Calendar,
   Navigation,
@@ -206,10 +205,6 @@ export const UserExploreDetailPage: React.FC = () => {
           >
             Add to Trip
           </Button>
-
-          <button className="p-2.5 rounded-button border border-[#E2E8F0] text-[#555E74] hover:bg-[#F0F3FF]">
-            <Share2 size={16} />
-          </button>
         </div>
       </div>
 
@@ -325,6 +320,19 @@ export const UserExploreDetailPage: React.FC = () => {
                       "{review.content || review.comment || 'Exceptional experience and atmosphere!'}"
                     </p>
 
+                    {review.images && review.images.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pl-12 pt-1">
+                        {review.images.map((img, i) => (
+                          <img
+                            key={i}
+                            src={img}
+                            alt={`Review photo ${i + 1}`}
+                            className="w-16 h-16 rounded-xl object-cover border border-[#CBD5E1] hover:scale-105 transition-transform"
+                          />
+                        ))}
+                      </div>
+                    )}
+
                     {review.ownerReply && (
                       <div className="ml-12 p-3 bg-[#F0F3FF] rounded-xl border border-[#CFE7E6] text-xs space-y-1">
                         <span className="font-bold text-[#006765] block text-[11px]">Owner Response:</span>
@@ -344,19 +352,30 @@ export const UserExploreDetailPage: React.FC = () => {
           <div className="bg-white p-5 rounded-2xl border border-[#E2E8F0] shadow-sm space-y-4">
             <h3 className="text-sm font-bold text-[#151C27]">Location & Contact</h3>
 
-            {/* Static map preview container */}
-            <div className="relative aspect-[16/9] rounded-xl overflow-hidden bg-slate-100 border border-[#E2E8F0]">
+            {/* Clickable map preview container linking to Google Maps */}
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                `${place.name} ${place.address || place.city || 'Rajkot Gujarat'}`
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group relative aspect-[16/9] rounded-xl overflow-hidden bg-slate-100 border border-[#E2E8F0] block cursor-pointer hover:border-[#006765] transition-all"
+              title="Open location in Google Maps"
+            >
               <img
                 src="/images/places/grand-courtyard.jpg"
                 alt="Map view"
-                className="w-full h-full object-cover filter blur-[1px] brightness-75"
+                className="w-full h-full object-cover filter blur-[1px] brightness-75 group-hover:scale-105 group-hover:brightness-90 transition-all duration-300"
               />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-9 h-9 rounded-full bg-[#006765] text-white flex items-center justify-center shadow-lg border-2 border-white animate-pulse">
-                  <MapPin size={18} />
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-black/10 group-hover:bg-black/20 transition-colors">
+                <div className="w-10 h-10 rounded-full bg-[#006765] text-white flex items-center justify-center shadow-lg border-2 border-white group-hover:scale-110 transition-transform">
+                  <MapPin size={20} />
                 </div>
+                <span className="text-[11px] font-semibold text-white bg-black/60 px-2.5 py-0.5 rounded-full backdrop-blur-xs flex items-center gap-1 shadow-sm">
+                  <Navigation size={11} /> Open in Google Maps
+                </span>
               </div>
-            </div>
+            </a>
 
             <div className="space-y-2.5 text-xs text-[#555E74]">
               <div className="flex items-start gap-2.5">

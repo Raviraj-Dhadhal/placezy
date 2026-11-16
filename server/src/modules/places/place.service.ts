@@ -85,11 +85,15 @@ export class PlaceService {
     obj._id = pId;
 
     if (userId) {
-      const isWishlisted = await WishlistModel.exists({
-        userId,
-        placeId: { $in: [place._id, place.slug].filter(Boolean) },
-      });
-      obj.isWishlisted = !!isWishlisted;
+      try {
+        const isWishlisted = await WishlistModel.exists({
+          userId,
+          placeId: place._id,
+        });
+        obj.isWishlisted = !!isWishlisted;
+      } catch (err) {
+        obj.isWishlisted = false;
+      }
     }
     return obj;
   }

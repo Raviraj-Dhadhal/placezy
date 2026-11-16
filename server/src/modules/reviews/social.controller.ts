@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { SocialService } from './social.service';
 import { AuthenticatedRequest } from '../../types';
 import { sendResponse } from '../../utils/apiResponse.util';
+import { UserModel } from '../users/user.model';
 
 export class ReviewController {
   static async create(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -10,10 +11,14 @@ export class ReviewController {
         sendResponse(res, 401, false, 'Authentication required to write a review');
         return;
       }
+      const user = await UserModel.findById(req.user.userId);
+      const userName = user?.name || req.user.email.split('@')[0];
+      const userAvatar = user?.avatar;
+
       const review = await SocialService.createReview(
         req.user.userId,
-        req.user.email.split('@')[0],
-        undefined,
+        userName,
+        userAvatar,
         req.body
       );
       sendResponse(

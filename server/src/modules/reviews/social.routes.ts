@@ -14,6 +14,7 @@ reviewRoutes.get('/place/:placeId', ReviewController.getApprovedByPlace);
 // Authenticated user review actions
 reviewRoutes.get('/my-reviews', authenticate, ReviewController.getMyReviews);
 reviewRoutes.post('/', authenticate, ReviewController.create);
+reviewRoutes.post('/submit', authenticate, ReviewController.create);
 reviewRoutes.post('/:id/like', authenticate, ReviewController.toggleLike);
 
 // Review image upload endpoint (up to 5 photos per review)

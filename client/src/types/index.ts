@@ -55,6 +55,7 @@ export interface Review {
   content: string;
   comment?: string;
   title?: string;
+  images?: string[];
   likes?: number;
   tags?: string[];
   verified?: boolean;
