@@ -19,8 +19,10 @@ export const adminRoutes = Router();
 adminRoutes.use(authenticate, authorize('admin'));
 adminRoutes.get('/metrics', AdminController.getMetrics);
 adminRoutes.get('/users', AdminController.getUsers);
+adminRoutes.post('/users', AdminController.createUser);
 adminRoutes.put('/users/:id/status', AdminController.updateUserStatus);
 adminRoutes.get('/businesses', AdminController.getBusinesses);
+adminRoutes.post('/businesses', AdminController.createBusiness);
 adminRoutes.put('/businesses/:id/verify', AdminController.verifyBusiness);
 
 // Review moderation endpoints

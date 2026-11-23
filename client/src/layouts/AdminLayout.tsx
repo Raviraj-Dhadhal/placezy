@@ -21,10 +21,10 @@ export const AdminLayout: React.FC = () => {
 
   const navItems = [
     { label: 'Dashboard', path: '/admin/dashboard', icon: <LayoutDashboard size={18} /> },
-    { label: 'Users', path: '/admin/users', icon: <Users size={18} />, badge: '12.4k' },
-    { label: 'Businesses', path: '/admin/businesses', icon: <Building2 size={18} />, badge: '1,840' },
-    { label: 'Categories', path: '/admin/categories', icon: <FolderTree size={18} />, badge: '48' },
-    { label: 'Reviews', path: '/admin/reviews', icon: <MessageSquareCheck size={18} />, badge: '3 pending', badgeColor: 'bg-amber-100 text-amber-800' },
+    { label: 'Users', path: '/admin/users', icon: <Users size={18} /> },
+    { label: 'Businesses', path: '/admin/businesses', icon: <Building2 size={18} /> },
+    { label: 'Categories', path: '/admin/categories', icon: <FolderTree size={18} /> },
+    { label: 'Reviews', path: '/admin/reviews', icon: <MessageSquareCheck size={18} /> },
     { label: 'Reports', path: '/admin/reports', icon: <FileBarChart2 size={18} /> },
     { label: 'Settings', path: '/admin/settings', icon: <Settings size={18} /> },
   ];
@@ -93,15 +93,6 @@ export const AdminLayout: React.FC = () => {
                   <span className="shrink-0">{item.icon}</span>
                   <span>{item.label}</span>
                 </div>
-                {item.badge && (
-                  <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      item.badgeColor || 'bg-[#F1F5F9] text-[#555E74]'
-                    }`}
-                  >
-                    {item.badge}
-                  </span>
-                )}
               </NavLink>
             ))}
           </nav>

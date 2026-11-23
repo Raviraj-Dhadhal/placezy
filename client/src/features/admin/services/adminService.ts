@@ -12,6 +12,11 @@ export const adminApi = {
     return res.data?.data || [];
   },
 
+  createUser: async (userData: any): Promise<User> => {
+    const res = await api.post('/admin/users', userData);
+    return res.data?.data;
+  },
+
   updateUserStatus: async (userId: string, status: 'active' | 'suspended'): Promise<User> => {
     const res = await api.put(`/admin/users/${userId}/status`, { status });
     return res.data?.data;
@@ -20,6 +25,11 @@ export const adminApi = {
   getBusinesses: async (): Promise<Place[]> => {
     const res = await api.get('/admin/businesses');
     return res.data?.data || [];
+  },
+
+  createBusiness: async (businessData: any): Promise<Place> => {
+    const res = await api.post('/admin/businesses', businessData);
+    return res.data?.data;
   },
 
   verifyBusiness: async (placeId: string, isVerified: boolean): Promise<Place> => {

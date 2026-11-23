@@ -186,12 +186,96 @@ export class AdminService {
     return UserModel.find({}).select('-passwordHash').sort({ createdAt: -1 });
   }
 
+  static async createUser(data: {
+    name: string;
+    email: string;
+    password: string;
+    phone?: string;
+    city?: string;
+    role?: 'user' | 'owner' | 'admin';
+    gender?: 'male' | 'female';
+  }) {
+    const cleanEmail = data.email.trim().toLowerCase();
+    const existing = await UserModel.findOne({ email: cleanEmail });
+    if (existing) {
+      throw new Error('A user with this email address already exists.');
+    }
+
+    if (data.phone) {
+      const cleanPhone = data.phone.replace(/[\s\-\+\(\)]/g, '');
+      if (!/^\d{10}$/.test(cleanPhone) && !/^(91)?\d{10}$/.test(cleanPhone)) {
+        throw new Error('Please provide a valid 10-digit mobile number.');
+      }
+    }
+
+    if (!data.password || data.password.length < 6) {
+      throw new Error('Password must be at least 6 characters long.');
+    }
+
+    const bcrypt = await import('bcryptjs');
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(data.password, salt);
+
+    const newUser = await UserModel.create({
+      name: data.name.trim(),
+      email: cleanEmail,
+      phone: data.phone,
+      passwordHash,
+      gender: data.gender,
+      interests: [],
+      city: data.city || 'Rajkot',
+      role: data.role || 'user',
+      status: 'active',
+    });
+
+    const userObj: any = newUser.toObject();
+    delete userObj.passwordHash;
+    return userObj;
+  }
+
   static async updateUserStatus(userId: string, status: 'active' | 'suspended') {
     return UserModel.findByIdAndUpdate(userId, { status }, { new: true }).select('-passwordHash');
   }
 
   static async getAllBusinesses() {
     return PlaceModel.find({}).populate('ownerId', 'name email').sort({ createdAt: -1 });
+  }
+
+  static async createBusiness(adminId: string, data: any) {
+    const rawSlug = (data.name || 'business')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    const uniqueSlug = `${rawSlug}-${Date.now().toString().slice(-5)}`;
+
+    let ownerId = data.ownerId;
+    if (!ownerId) {
+      // Find or assign owner, or use the admin
+      ownerId = adminId;
+    }
+
+    const cover = data.coverImage || data.imageUrl || (data.galleryImages && data.galleryImages[0]) || '/images/places/grand-courtyard.jpg';
+
+    const newPlace = await PlaceModel.create({
+      ...data,
+      slug: data.slug || uniqueSlug,
+      ownerId,
+      isVerified: data.isVerified !== undefined ? data.isVerified : true,
+      status: data.status || 'active',
+      openingStatus: data.openingStatus || 'Open Now',
+      rating: data.rating || 5.0,
+      reviewsCount: data.reviewsCount || 0,
+      matchPercentage: data.matchPercentage || 95,
+      city: data.city || 'Rajkot',
+      imageUrl: cover,
+      coverImage: cover,
+      galleryImages: data.galleryImages && data.galleryImages.length > 0 ? data.galleryImages : [cover],
+      features: data.features || data.facilities || [],
+      facilities: data.facilities || data.features || [],
+    });
+
+    return PlaceModel.findById(newPlace._id).populate('ownerId', 'name email');
   }
 
   static async verifyBusiness(placeId: string, isVerified: boolean) {

@@ -140,6 +140,20 @@ export class AdminController {
     }
   }
 
+  static async createUser(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { name, email, password, phone, city, role, gender } = req.body;
+      if (!name || !email || !password) {
+        sendResponse(res, 400, false, 'Name, email, and password are required');
+        return;
+      }
+      const user = await AdminService.createUser({ name, email, password, phone, city, role, gender });
+      sendResponse(res, 201, true, 'User created successfully in database', user);
+    } catch (error: any) {
+      next(error);
+    }
+  }
+
   static async updateUserStatus(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
@@ -160,6 +174,24 @@ export class AdminController {
       const businesses = await AdminService.getAllBusinesses();
       sendResponse(res, 200, true, 'Businesses directory retrieved', businesses);
     } catch (error) {
+      next(error);
+    }
+  }
+
+  static async createBusiness(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        sendResponse(res, 401, false, 'Unauthorized');
+        return;
+      }
+      const { name, address, description } = req.body;
+      if (!name || !address || !description) {
+        sendResponse(res, 400, false, 'Business name, address, and description are required');
+        return;
+      }
+      const business = await AdminService.createBusiness(req.user.userId, req.body);
+      sendResponse(res, 201, true, 'Business registered successfully in database', business);
+    } catch (error: any) {
       next(error);
     }
   }

@@ -13,7 +13,11 @@ import {
   Mail,
   Phone,
   MapPin,
-  Calendar
+  Calendar,
+  Lock,
+  User as UserIcon,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 export const AdminUsersPage: React.FC = () => {
@@ -23,6 +27,20 @@ export const AdminUsersPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Suspended'>('All');
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Add User Modal State
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [modalName, setModalName] = useState('');
+  const [modalEmail, setModalEmail] = useState('');
+  const [modalPhone, setModalPhone] = useState('');
+  const [modalPassword, setModalPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [modalCity, setModalCity] = useState('Rajkot');
+  const [modalRole, setModalRole] = useState<'user' | 'owner' | 'admin'>('user');
+  const [modalGender, setModalGender] = useState<'male' | 'female'>('male');
+  const [modalSubmitting, setModalSubmitting] = useState(false);
+  const [modalError, setModalError] = useState('');
+  const [modalSuccess, setModalSuccess] = useState('');
 
   const fetchUsers = () => {
     setLoading(true);
@@ -41,6 +59,67 @@ export const AdminUsersPage: React.FC = () => {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  const handleOpenAddModal = () => {
+    setModalName('');
+    setModalEmail('');
+    setModalPhone('');
+    setModalPassword('');
+    setShowPassword(false);
+    setModalCity('Rajkot');
+    setModalRole('user');
+    setModalGender('male');
+    setModalError('');
+    setModalSuccess('');
+    setShowAddModal(true);
+  };
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setModalError('');
+    setModalSuccess('');
+
+    if (!modalName.trim() || !modalEmail.trim() || !modalPassword.trim()) {
+      setModalError('Please enter Name, Email, and Password.');
+      return;
+    }
+
+    if (modalPassword.length < 6) {
+      setModalError('Password must be at least 6 characters.');
+      return;
+    }
+
+    if (modalPhone.trim()) {
+      const cleanPhone = modalPhone.replace(/[\s\-\+\(\)]/g, '');
+      if (!/^\d{10}$/.test(cleanPhone) && !/^(91)?\d{10}$/.test(cleanPhone)) {
+        setModalError('Please enter a valid 10-digit mobile number.');
+        return;
+      }
+    }
+
+    setModalSubmitting(true);
+    try {
+      const newUser = await adminApi.createUser({
+        name: modalName.trim(),
+        email: modalEmail.trim().toLowerCase(),
+        password: modalPassword,
+        phone: modalPhone.trim(),
+        city: modalCity.trim() || 'Rajkot',
+        role: modalRole,
+        gender: modalGender,
+      });
+
+      setModalSuccess('User created successfully in database!');
+      setTimeout(() => {
+        setShowAddModal(false);
+        fetchUsers();
+      }, 700);
+    } catch (err: any) {
+      setModalError(err.response?.data?.message || err.message || 'Failed to create user');
+    } finally {
+      setModalSubmitting(false);
+    }
+  };
 
   const handleToggleStatus = async (userToUpdate: any) => {
     const userId = userToUpdate.id || userToUpdate._id;
@@ -102,7 +181,7 @@ export const AdminUsersPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button size="sm" icon={<Plus size={14} />}>
+          <Button size="sm" icon={<Plus size={14} />} onClick={handleOpenAddModal}>
             Add New User
           </Button>
         </div>
@@ -295,6 +374,180 @@ export const AdminUsersPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Add New User Modal Dialog */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-[#F1F5F9] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[#CFE7E6]/40 text-[#006765] flex items-center justify-center border border-[#006765]/20">
+                  <UserIcon size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-[#151C27]">Add New User</h3>
+                  <p className="text-xs text-[#555E74]">Create a new user account directly in MongoDB</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                className="p-1.5 rounded-lg text-[#555E74] hover:bg-[#F1F5F9] hover:text-[#151C27] transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleCreateUser} className="p-6 space-y-4 overflow-y-auto">
+              {modalError && (
+                <div className="p-3 bg-red-50 text-red-700 text-xs rounded-xl border border-red-200 flex items-center gap-2">
+                  <Ban size={14} className="shrink-0" />
+                  <span>{modalError}</span>
+                </div>
+              )}
+
+              {modalSuccess && (
+                <div className="p-3 bg-emerald-50 text-emerald-800 text-xs rounded-xl border border-emerald-200 flex items-center gap-2">
+                  <CheckCircle size={14} className="shrink-0 text-emerald-600" />
+                  <span>{modalSuccess}</span>
+                </div>
+              )}
+
+              {/* Full Name */}
+              <div>
+                <label className="block text-xs font-bold text-[#151C27] mb-1">
+                  Full Name <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  placeholder="e.g. Priyal Sharma"
+                  value={modalName}
+                  onChange={(e) => setModalName(e.target.value)}
+                  icon={<UserIcon size={16} />}
+                  required
+                />
+              </div>
+
+              {/* Email Address */}
+              <div>
+                <label className="block text-xs font-bold text-[#151C27] mb-1">
+                  Email Address <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  type="email"
+                  placeholder="name@example.com"
+                  value={modalEmail}
+                  onChange={(e) => setModalEmail(e.target.value)}
+                  icon={<Mail size={16} />}
+                  required
+                />
+              </div>
+
+              {/* Mobile Number & City */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-[#151C27] mb-1">
+                    Mobile Number
+                  </label>
+                  <Input
+                    placeholder="98251 00000"
+                    value={modalPhone}
+                    onChange={(e) => setModalPhone(e.target.value)}
+                    icon={<Phone size={16} />}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#151C27] mb-1">
+                    City / Territory
+                  </label>
+                  <Input
+                    placeholder="Rajkot"
+                    value={modalCity}
+                    onChange={(e) => setModalCity(e.target.value)}
+                    icon={<MapPin size={16} />}
+                  />
+                </div>
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="block text-xs font-bold text-[#151C27] mb-1">
+                  Temporary Password <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="At least 6 characters"
+                  value={modalPassword}
+                  onChange={(e) => setModalPassword(e.target.value)}
+                  icon={<Lock size={16} />}
+                  rightElement={
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="text-[#555E74] hover:text-[#151C27] focus:outline-none p-1"
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  }
+                  required
+                />
+              </div>
+
+              {/* Role & Gender */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="block text-xs font-bold text-[#151C27] mb-1">
+                    Account Role
+                  </label>
+                  <select
+                    value={modalRole}
+                    onChange={(e: any) => setModalRole(e.target.value)}
+                    className="w-full text-xs p-2.5 rounded-xl border border-[#E2E8F0] bg-white text-[#151C27] focus:outline-none focus:border-[#006765]"
+                  >
+                    <option value="user">Explorer (User)</option>
+                    <option value="owner">Business Owner</option>
+                    <option value="admin">Platform Admin</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#151C27] mb-1">
+                    Gender (Avatar)
+                  </label>
+                  <select
+                    value={modalGender}
+                    onChange={(e: any) => setModalGender(e.target.value)}
+                    className="w-full text-xs p-2.5 rounded-xl border border-[#E2E8F0] bg-white text-[#151C27] focus:outline-none focus:border-[#006765]"
+                  >
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#F1F5F9]">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAddModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={modalSubmitting}
+                >
+                  {modalSubmitting ? 'Saving to Database...' : 'Save & Register User'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
